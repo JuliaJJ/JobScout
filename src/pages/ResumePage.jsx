@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Save, Clock } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Save, Clock, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import * as pdfjsLib from 'pdfjs-dist'
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
 export default function ResumePage() {
   const [content, setContent] = useState('')
@@ -9,6 +13,8 @@ export default function ResumePage() {
   const [activeId, setActiveId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [parsing, setParsing] = useState(false)
+  const fileInputRef = useRef(null)
 
   async function load() {
     const { data } = await supabase
@@ -63,6 +69,48 @@ export default function ResumePage() {
     load()
   }
 
+  async function handlePdfUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    setParsing(true)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+      const pageTexts = []
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum)
+        const textContent = await page.getTextContent()
+
+        // Group items into lines by y-coordinate, then join lines
+        const lines = []
+        let lastY = null
+        let currentLine = []
+        for (const item of textContent.items) {
+          const y = item.transform[5]
+          if (lastY !== null && Math.abs(y - lastY) > 3) {
+            if (currentLine.length) lines.push(currentLine.join(' ').trim())
+            currentLine = []
+          }
+          if (item.str.trim()) currentLine.push(item.str)
+          lastY = y
+        }
+        if (currentLine.length) lines.push(currentLine.join(' ').trim())
+
+        const pageText = lines.filter(Boolean).join('\n')
+        if (pageText) pageTexts.push(pageText)
+      }
+
+      setContent(pageTexts.join('\n\n'))
+    } catch (err) {
+      alert('Could not parse PDF: ' + err.message)
+    } finally {
+      setParsing(false)
+    }
+  }
+
   const wordCount = content.trim().split(/\s+/).filter(Boolean).length
 
   return (
@@ -75,6 +123,13 @@ export default function ResumePage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} disabled={parsing || saving}>
+            {parsing
+              ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> Parsing…</>
+              : <><Upload size={13} /> Upload PDF</>
+            }
+          </button>
+          <input ref={fileInputRef} type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePdfUpload} />
           {versions.length > 0 && (
             <button className="btn btn-secondary" onClick={saveAsNew} disabled={saving}>
               Save as new version
