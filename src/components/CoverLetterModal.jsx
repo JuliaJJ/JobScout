@@ -103,11 +103,13 @@ export default function CoverLetterModal({ listing, onClose, onSaved }) {
               className="input"
               style={{
                 flex: 1,
-                minHeight: 360,
+                minHeight: 200,
+                maxHeight: 'calc(70vh - 160px)',
+                overflowY: 'auto',
                 fontFamily: 'DM Mono',
                 fontSize: 12,
                 lineHeight: 1.8,
-                resize: 'vertical',
+                resize: 'none',
               }}
               value={text}
               onChange={e => setText(e.target.value)}

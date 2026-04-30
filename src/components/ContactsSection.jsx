@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Trash2, Mail, Linkedin, Calendar } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 
@@ -71,6 +71,11 @@ export default function ContactsSection({ listing }) {
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState(blankForm)
   const [saving, setSaving] = useState(false)
+
+  // Re-sync when parent reloads with fresh data (card stays expanded after onUpdate)
+  useEffect(() => {
+    setContacts(listing.contacts || [])
+  }, [JSON.stringify(listing.contacts)])
 
   async function persist(updated) {
     setSaving(true)

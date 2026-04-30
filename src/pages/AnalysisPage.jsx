@@ -149,7 +149,10 @@ export default function AnalysisPage() {
           <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Gap Analysis</h1>
           <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
             {resume ? `Resume: ${resume.label}` : '⚠ No resume saved'} ·{' '}
-            {listings.length} wanted listings
+            {listings.filter(l => !l.application_status).length} research
+            {listings.filter(l => l.application_status).length > 0 &&
+              ` + ${listings.filter(l => l.application_status).length} pipeline`
+            } listings included
           </p>
         </div>
         <button

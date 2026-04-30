@@ -101,8 +101,9 @@ export default function ActivityPage() {
   const events = []
   listings.forEach(l => {
     events.push({ type: 'saved', date: new Date(l.created_at), listing: l })
-    if (l.applied_at) {
-      events.push({ type: 'applied', date: new Date(l.applied_at), listing: l })
+    if (l.application_status) {
+      // applied_at is null for listings moved to pipeline before that column existed — fall back to created_at
+      events.push({ type: 'applied', date: new Date(l.applied_at || l.created_at), listing: l })
     }
     ;(l.contacts || []).forEach(c => {
       if (c.date) {

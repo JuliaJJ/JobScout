@@ -21,8 +21,10 @@ export default function RelevantPiecesModal({ listing, onClose }) {
         .select('*')
         .order('created_at', { ascending: false })
       const cluster = listing.role_cluster
+      // Only show pieces explicitly tagged to the listing's cluster.
+      // If the listing has no cluster assigned, show everything.
       const relevant = (data || []).filter(p =>
-        !cluster || !p.role_clusters?.length || p.role_clusters.includes(cluster)
+        !cluster || p.role_clusters?.includes(cluster)
       )
       setPieces(relevant)
       setLoading(false)

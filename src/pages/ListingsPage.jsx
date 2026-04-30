@@ -454,6 +454,7 @@ export default function ListingsPage() {
   const [filter, setFilter] = useState('all')
   const [sort, setSort] = useState('newest')
   const [salaryOnly, setSalaryOnly] = useState(false)
+  const [search, setSearch] = useState('')
 
   async function load() {
     const [{ data: listingData }, { data: pieceData }] = await Promise.all([
@@ -473,9 +474,16 @@ export default function ListingsPage() {
     load()
   }
 
+  const q = search.trim().toLowerCase()
   const filtered = listings
     .filter(l => filter === 'all' || l.interest_rating === filter)
     .filter(l => !salaryOnly || l.salary_min || l.salary_max)
+    .filter(l => !q ||
+      l.title?.toLowerCase().includes(q) ||
+      l.company?.toLowerCase().includes(q) ||
+      l.location?.toLowerCase().includes(q) ||
+      (l.parsed_skills || []).some(s => s.toLowerCase().includes(q))
+    )
     .sort((a, b) => {
       if (sort === 'salary-desc') {
         return (b.salary_max || b.salary_min || 0) - (a.salary_max || a.salary_min || 0)
@@ -507,9 +515,18 @@ export default function ListingsPage() {
             {listings.length} saved · signal your interest to train the gap analysis
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          <Plus size={14} /> Add listing
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            className="input"
+            style={{ width: 220, padding: '6px 10px', fontSize: 13 }}
+            placeholder="Search title, company, skills…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            <Plus size={14} /> Add listing
+          </button>
+        </div>
       </div>
 
       {/* Filter / sort bar */}
