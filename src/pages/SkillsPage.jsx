@@ -18,7 +18,7 @@ function SkillBar({ skill, count, max, pct }) {
           transition: 'width 0.4s ease',
         }} />
       </div>
-      <span style={{ fontFamily: 'DM Mono', fontSize: 11, color: 'var(--text-tertiary)', minWidth: 48, textAlign: 'right' }}>
+      <span style={{ fontFamily: 'DM Mono', fontSize: 11, color: 'var(--text-tertiary)', width: 72, flexShrink: 0, textAlign: 'right' }}>
         {count}× · {pct}%
       </span>
     </div>
@@ -124,7 +124,7 @@ export default function SkillsPage() {
               { label: 'Core (>60% of roles)', min: 0.6 },
               { label: 'Common (30–60%)', min: 0.3, max: 0.6 },
               { label: 'Emerging (<30%)', max: 0.3 },
-            ].map(({ label, min = 0, max: mx = 1 }) => {
+            ].map(({ label, min = 0, max: mx = Infinity }) => {
               const tier = sorted.filter(([, c]) => {
                 const pct = c / (total || 1)
                 return pct >= min && pct < mx
