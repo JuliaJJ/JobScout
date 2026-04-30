@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ExternalLink, Archive } from 'lucide-react'
+import { ExternalLink, Archive, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import CoverLetterModal from '../components/CoverLetterModal.jsx'
 
 const COLUMNS = [
   { status: 'applied', label: 'Applied', color: 'var(--text-primary)' },
@@ -10,7 +11,7 @@ const COLUMNS = [
   { status: 'closed', label: 'Closed', color: 'var(--text-tertiary)', muted: true },
 ]
 
-function KanbanCard({ listing, onDragStart, onArchive }) {
+function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter }) {
   return (
     <div
       draggable
@@ -28,6 +29,14 @@ function KanbanCard({ listing, onDragStart, onArchive }) {
           )}
         </div>
         <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '3px 6px', color: listing.cover_letter ? 'var(--yes)' : 'var(--text-tertiary)' }}
+            onClick={() => onCoverLetter(listing)}
+            title={listing.cover_letter ? 'View / edit cover letter' : 'Generate cover letter'}
+          >
+            <FileText size={11} />
+          </button>
           <a
             href={listing.url}
             target="_blank"
@@ -73,7 +82,7 @@ function KanbanCard({ listing, onDragStart, onArchive }) {
   )
 }
 
-function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive }) {
+function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onCoverLetter }) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   return (
@@ -132,6 +141,7 @@ function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive }) {
             listing={l}
             onDragStart={onDragStart}
             onArchive={onArchive}
+            onCoverLetter={onCoverLetter}
           />
         ))}
         {listings.length === 0 && !isDragOver && (
@@ -148,6 +158,7 @@ export default function PipelinePage() {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
   const [draggingId, setDraggingId] = useState(null)
+  const [coverLetterListing, setCoverLetterListing] = useState(null)
 
   async function load() {
     const { data } = await supabase
@@ -216,9 +227,23 @@ export default function PipelinePage() {
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               onArchive={handleArchive}
+              onCoverLetter={setCoverLetterListing}
             />
           ))}
         </div>
+      )}
+
+      {coverLetterListing && (
+        <CoverLetterModal
+          listing={coverLetterListing}
+          onClose={() => setCoverLetterListing(null)}
+          onSaved={(savedText) => {
+            setListings(prev => prev.map(l =>
+              l.id === coverLetterListing.id ? { ...l, cover_letter: savedText } : l
+            ))
+            setCoverLetterListing(null)
+          }}
+        />
       )}
     </div>
   )

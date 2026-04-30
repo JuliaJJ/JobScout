@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send } from 'lucide-react'
+import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import CoverLetterModal from '../components/CoverLetterModal.jsx'
 
 const CLUSTERS = ['ux', 'product-design', 'design-engineer', 'design-technologist', 'other']
 const RATINGS = ['yes', 'maybe', 'no']
@@ -159,6 +160,8 @@ function ListingCard({ listing, onUpdate, onDelete }) {
   const [notes, setNotes] = useState(listing.notes || '')
   const [saving, setSaving] = useState(false)
   const [applying, setApplying] = useState(false)
+  const [showCoverLetter, setShowCoverLetter] = useState(false)
+  const [coverLetter, setCoverLetter] = useState(listing.cover_letter || '')
 
   async function save(updates) {
     setSaving(true)
@@ -298,7 +301,62 @@ function ListingCard({ listing, onUpdate, onDelete }) {
               placeholder="Why does this role appeal to you? Any concerns?"
             />
           </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <label className="label" style={{ marginBottom: 0 }}>Cover letter</label>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: 11, gap: 5, padding: '4px 8px' }}
+                onClick={() => setShowCoverLetter(true)}
+              >
+                <FileText size={11} />
+                {coverLetter ? 'Edit / regenerate' : 'Generate'}
+              </button>
+            </div>
+            {coverLetter ? (
+              <div
+                style={{
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  fontSize: 12,
+                  fontFamily: 'DM Mono',
+                  lineHeight: 1.7,
+                  color: 'var(--text-secondary)',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: 120,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setShowCoverLetter(true)}
+              >
+                {coverLetter}
+                <div style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0, height: 40,
+                  background: 'linear-gradient(transparent, var(--bg))',
+                  borderRadius: '0 0 6px 6px',
+                }} />
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                No cover letter yet.
+              </p>
+            )}
+          </div>
         </div>
+      )}
+
+      {showCoverLetter && (
+        <CoverLetterModal
+          listing={{ ...listing, cover_letter: coverLetter }}
+          onClose={() => setShowCoverLetter(false)}
+          onSaved={(savedText) => {
+            setCoverLetter(savedText)
+            setShowCoverLetter(false)
+          }}
+        />
       )}
     </div>
   )
