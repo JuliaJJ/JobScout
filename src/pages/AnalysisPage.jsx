@@ -113,7 +113,12 @@ export default function AnalysisPage() {
         }),
       })
 
-      const data = await res.json()
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error('Analysis timed out — try again, or reduce the number of listings included.')
+      }
       if (!res.ok) throw new Error(data.error)
 
       // Save to DB
