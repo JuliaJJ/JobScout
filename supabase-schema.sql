@@ -20,6 +20,8 @@ create table job_listings (
   role_cluster text, -- 'ux', 'design-engineer', 'design-technologist', 'product-design', 'other'
   interest_rating text check (interest_rating in ('yes', 'maybe', 'no')) default 'maybe',
   application_status text check (application_status in ('applied', 'screening', 'interviewing', 'offer', 'closed')),
+  salary_min integer, -- annual USD base
+  salary_max integer, -- annual USD base
   cover_letter text,
   contacts jsonb default '[]', -- array of { id, name, role, email, linkedin, date, notes }
   notes text,

@@ -68,8 +68,12 @@ export default async function handler(req, res) {
   "skills": ["array of specific skills, tools, technologies mentioned"],
   "requirements": ["array of required qualifications as short strings"],
   "nice_to_haves": ["array of preferred/bonus qualifications as short strings"],
+  "salary_min": null or integer (USD annual equivalent — convert hourly × 2080, omit equity/bonus),
+  "salary_max": null or integer (USD annual equivalent — convert hourly × 2080, omit equity/bonus),
   "raw_text": "first 2000 chars of cleaned job description text"
 }
+
+For salary: extract only base salary. If a range is given use both min and max. If only one number is stated, put it in salary_min. If no salary is mentioned, use null for both.
 
 Job listing text:
 ${text}`
@@ -94,6 +98,8 @@ ${text}`
       skills: parsed.skills || [],
       requirements: parsed.requirements || [],
       nice_to_haves: parsed.nice_to_haves || [],
+      salary_min: typeof parsed.salary_min === 'number' ? parsed.salary_min : null,
+      salary_max: typeof parsed.salary_max === 'number' ? parsed.salary_max : null,
       raw_text: parsed.raw_text || text.slice(0, 2000),
     })
 

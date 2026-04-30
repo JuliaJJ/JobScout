@@ -4,6 +4,14 @@ import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
 import ContactsSection from '../components/ContactsSection.jsx'
 
+function formatSalary(min, max) {
+  const fmt = n => n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n}`
+  if (min && max) return `${fmt(min)}–${fmt(max)}`
+  if (min) return `${fmt(min)}+`
+  if (max) return `up to ${fmt(max)}`
+  return null
+}
+
 const CLUSTERS = ['ux', 'product-design', 'design-engineer', 'design-technologist', 'other']
 const RATINGS = ['yes', 'maybe', 'no']
 
@@ -46,6 +54,8 @@ function AddListingModal({ onClose, onAdded }) {
         parsed_nice_to_haves: data.nice_to_haves || [],
         seniority_level: data.seniority_level,
         role_cluster: data.role_cluster,
+        salary_min: data.salary_min ?? null,
+        salary_max: data.salary_max ?? null,
       })
       if (dbErr) throw dbErr
       onAdded()
@@ -163,12 +173,21 @@ function ListingCard({ listing, onUpdate, onDelete }) {
   const [applying, setApplying] = useState(false)
   const [showCoverLetter, setShowCoverLetter] = useState(false)
   const [coverLetter, setCoverLetter] = useState(listing.cover_letter || '')
+  const [salaryMin, setSalaryMin] = useState(listing.salary_min ?? '')
+  const [salaryMax, setSalaryMax] = useState(listing.salary_max ?? '')
 
   async function save(updates) {
     setSaving(true)
     await supabase.from('job_listings').update(updates).eq('id', listing.id)
     setSaving(false)
     onUpdate()
+  }
+
+  function saveSalary() {
+    save({
+      salary_min: salaryMin !== '' ? parseInt(salaryMin) : null,
+      salary_max: salaryMax !== '' ? parseInt(salaryMax) : null,
+    })
   }
 
   async function markAsApplied() {
@@ -214,6 +233,11 @@ function ListingCard({ listing, onUpdate, onDelete }) {
             <span className={`badge badge-${rating}`}>{rating}</span>
             {listing.seniority_level && (
               <span className="badge badge-neutral">{listing.seniority_level}</span>
+            )}
+            {formatSalary(salaryMin || null, salaryMax || null) && (
+              <span className="badge badge-neutral" style={{ fontFamily: 'DM Mono', fontSize: 10 }}>
+                {formatSalary(salaryMin ? parseInt(salaryMin) : null, salaryMax ? parseInt(salaryMax) : null)}
+              </span>
             )}
             <select
               value={cluster}
@@ -291,6 +315,30 @@ function ListingCard({ listing, onUpdate, onDelete }) {
               </ul>
             </div>
           )}
+          <div>
+            <label className="label">Compensation (annual base, USD)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                className="input"
+                type="number"
+                placeholder="Min e.g. 120000"
+                value={salaryMin}
+                onChange={e => setSalaryMin(e.target.value)}
+                onBlur={saveSalary}
+                style={{ flex: 1 }}
+              />
+              <span style={{ color: 'var(--text-tertiary)', fontSize: 13, flexShrink: 0 }}>–</span>
+              <input
+                className="input"
+                type="number"
+                placeholder="Max e.g. 160000"
+                value={salaryMax}
+                onChange={e => setSalaryMax(e.target.value)}
+                onBlur={saveSalary}
+                style={{ flex: 1 }}
+              />
+            </div>
+          </div>
           <div>
             <p className="section-header" style={{ marginBottom: 8 }}>Contacts</p>
             <ContactsSection listing={listing} />
@@ -372,6 +420,8 @@ export default function ListingsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('all')
+  const [sort, setSort] = useState('newest')
+  const [salaryOnly, setSalaryOnly] = useState(false)
 
   async function load() {
     const { data } = await supabase
@@ -392,7 +442,23 @@ export default function ListingsPage() {
     load()
   }
 
-  const filtered = filter === 'all' ? listings : listings.filter(l => l.interest_rating === filter)
+  const filtered = listings
+    .filter(l => filter === 'all' || l.interest_rating === filter)
+    .filter(l => !salaryOnly || l.salary_min || l.salary_max)
+    .sort((a, b) => {
+      if (sort === 'salary-desc') {
+        return (b.salary_max || b.salary_min || 0) - (a.salary_max || a.salary_min || 0)
+      }
+      if (sort === 'salary-asc') {
+        const aVal = a.salary_min || a.salary_max || 0
+        const bVal = b.salary_min || b.salary_max || 0
+        if (!aVal && !bVal) return 0
+        if (!aVal) return 1
+        if (!bVal) return -1
+        return aVal - bVal
+      }
+      return 0
+    })
 
   const counts = {
     all: listings.length,
@@ -415,26 +481,53 @@ export default function ListingsPage() {
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-        {['all', 'yes', 'maybe', 'no'].map(f => (
+      {/* Filter / sort bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {['all', 'yes', 'maybe', 'no'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className="btn btn-ghost"
+              style={{
+                color: filter === f ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                fontWeight: filter === f ? 600 : 400,
+                padding: '4px 10px',
+              }}
+            >
+              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+              <span style={{ marginLeft: 4, fontSize: 11, fontFamily: 'DM Mono', color: 'var(--text-tertiary)' }}>
+                {counts[f]}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
-            key={f}
-            onClick={() => setFilter(f)}
             className="btn btn-ghost"
             style={{
-              color: filter === f ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontWeight: filter === f ? 600 : 400,
-              padding: '4px 10px',
+              fontSize: 11, padding: '4px 8px', fontFamily: 'DM Mono',
+              color: salaryOnly ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              fontWeight: salaryOnly ? 600 : 400,
+            }}
+            onClick={() => setSalaryOnly(s => !s)}
+          >
+            $ has salary
+          </button>
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value)}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 6,
+              padding: '4px 8px', fontSize: 12, background: 'white',
+              color: 'var(--text-secondary)', cursor: 'pointer',
             }}
           >
-            {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-            <span style={{
-              marginLeft: 4, fontSize: 11, fontFamily: 'DM Mono',
-              color: 'var(--text-tertiary)'
-            }}>{counts[f]}</span>
-          </button>
-        ))}
+            <option value="newest">Newest first</option>
+            <option value="salary-desc">Salary: high → low</option>
+            <option value="salary-asc">Salary: low → high</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
