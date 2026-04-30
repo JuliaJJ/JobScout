@@ -64,7 +64,20 @@ where interest_rating != 'no'
 group by skill
 order by frequency desc;
 
+-- Portfolio pieces table
+create table portfolio_pieces (
+  id uuid primary key default uuid_generate_v4(),
+  created_at timestamptz default now(),
+  title text not null,
+  type text default 'Project',
+  description text,
+  url text,
+  role_clusters jsonb default '[]', -- subset of: ux, product-design, design-engineer, design-technologist
+  skills jsonb default '[]'
+);
+
 -- RLS: disable for personal tool (single user)
 alter table job_listings disable row level security;
 alter table resume_versions disable row level security;
 alter table gap_analyses disable row level security;
+alter table portfolio_pieces disable row level security;

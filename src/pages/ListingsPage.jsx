@@ -164,7 +164,7 @@ function AddListingModal({ onClose, onAdded }) {
   )
 }
 
-function ListingCard({ listing, onUpdate, onDelete }) {
+function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
   const [expanded, setExpanded] = useState(false)
   const [rating, setRating] = useState(listing.interest_rating)
   const [cluster, setCluster] = useState(listing.role_cluster || 'other')
@@ -401,6 +401,34 @@ function ListingCard({ listing, onUpdate, onDelete }) {
               </p>
             )}
           </div>
+
+          {/* Relevant portfolio */}
+          {(() => {
+            const relevant = portfolioPieces.filter(p =>
+              !listing.role_cluster || !p.role_clusters?.length || p.role_clusters.includes(listing.role_cluster)
+            )
+            if (!relevant.length) return null
+            return (
+              <div>
+                <p className="section-header" style={{ marginBottom: 8 }}>Relevant portfolio</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {relevant.map(p => (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 13, fontWeight: 500 }}>{p.title}</span>
+                        <span className="badge badge-neutral" style={{ marginLeft: 8, fontSize: 10 }}>{p.type}</span>
+                      </div>
+                      {p.url && (
+                        <a href={p.url} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ padding: '3px 6px', flexShrink: 0 }}>
+                          <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -420,6 +448,7 @@ function ListingCard({ listing, onUpdate, onDelete }) {
 
 export default function ListingsPage() {
   const [listings, setListings] = useState([])
+  const [portfolioPieces, setPortfolioPieces] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('all')
@@ -427,13 +456,12 @@ export default function ListingsPage() {
   const [salaryOnly, setSalaryOnly] = useState(false)
 
   async function load() {
-    const { data } = await supabase
-      .from('job_listings')
-      .select('*')
-      .eq('is_archived', false)
-      .is('application_status', null)
-      .order('created_at', { ascending: false })
-    setListings(data || [])
+    const [{ data: listingData }, { data: pieceData }] = await Promise.all([
+      supabase.from('job_listings').select('*').eq('is_archived', false).is('application_status', null).order('created_at', { ascending: false }),
+      supabase.from('portfolio_pieces').select('*').order('created_at', { ascending: false }),
+    ])
+    setListings(listingData || [])
+    setPortfolioPieces(pieceData || [])
     setLoading(false)
   }
 
@@ -546,7 +574,7 @@ export default function ListingsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(l => (
-            <ListingCard key={l.id} listing={l} onUpdate={load} onDelete={handleDelete} />
+            <ListingCard key={l.id} listing={l} onUpdate={load} onDelete={handleDelete} portfolioPieces={portfolioPieces} />
           ))}
         </div>
       )}

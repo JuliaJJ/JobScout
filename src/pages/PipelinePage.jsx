@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { ExternalLink, Archive, FileText, Users } from 'lucide-react'
+import { ExternalLink, Archive, FileText, Users, Briefcase } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
 import ContactsModal from '../components/ContactsModal.jsx'
+import RelevantPiecesModal from '../components/RelevantPiecesModal.jsx'
 
 const COLUMNS = [
   { status: 'applied', label: 'Applied', color: 'var(--text-primary)' },
@@ -12,7 +13,7 @@ const COLUMNS = [
   { status: 'closed', label: 'Closed', color: 'var(--text-tertiary)', muted: true },
 ]
 
-function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter, onContacts }) {
+function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter, onContacts, onPortfolio }) {
   return (
     <div
       draggable
@@ -44,6 +45,14 @@ function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter, onContacts
                 background: 'var(--yes)', border: '1.5px solid white',
               }} />
             )}
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '3px 6px', color: 'var(--text-tertiary)' }}
+            onClick={() => onPortfolio(listing)}
+            title="Relevant portfolio"
+          >
+            <Briefcase size={11} />
           </button>
           <button
             className="btn btn-ghost"
@@ -98,7 +107,7 @@ function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter, onContacts
   )
 }
 
-function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onCoverLetter, onContacts }) {
+function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onCoverLetter, onContacts, onPortfolio }) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   return (
@@ -159,6 +168,7 @@ function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onCoverLe
             onArchive={onArchive}
             onCoverLetter={onCoverLetter}
             onContacts={onContacts}
+            onPortfolio={onPortfolio}
           />
         ))}
         {listings.length === 0 && !isDragOver && (
@@ -177,6 +187,7 @@ export default function PipelinePage() {
   const [draggingId, setDraggingId] = useState(null)
   const [coverLetterListing, setCoverLetterListing] = useState(null)
   const [contactsListing, setContactsListing] = useState(null)
+  const [portfolioListing, setPortfolioListing] = useState(null)
 
   async function load() {
     const { data } = await supabase
@@ -247,6 +258,7 @@ export default function PipelinePage() {
               onArchive={handleArchive}
               onCoverLetter={setCoverLetterListing}
               onContacts={setContactsListing}
+              onPortfolio={setPortfolioListing}
             />
           ))}
         </div>
@@ -272,6 +284,13 @@ export default function PipelinePage() {
             load()
             setContactsListing(null)
           }}
+        />
+      )}
+
+      {portfolioListing && (
+        <RelevantPiecesModal
+          listing={portfolioListing}
+          onClose={() => setPortfolioListing(null)}
         />
       )}
     </div>
