@@ -15,31 +15,39 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Resume and listings required' })
   }
 
-  // Build skill frequency map (weighted by interest)
+  // Build weighted frequency maps across all listings (yes=2x, maybe=1x)
   const skillFreq = {}
+  const reqFreq = {}
+  const nthFreq = {}
+  const clusterCounts = {}
+  const seniorityCounts = {}
   const weightedTotal = listings.reduce((sum, l) => sum + (l.interest_rating === 'yes' ? 2 : 1), 0)
 
   listings.forEach(l => {
-    const weight = l.interest_rating === 'yes' ? 2 : 1;
-    (l.skills || []).forEach(s => {
-      skillFreq[s] = (skillFreq[s] || 0) + weight
-    })
+    const weight = l.interest_rating === 'yes' ? 2 : 1
+    ;(l.skills || []).forEach(s => { skillFreq[s] = (skillFreq[s] || 0) + weight })
+    ;(l.requirements || []).forEach(r => { reqFreq[r] = (reqFreq[r] || 0) + weight })
+    ;(l.nice_to_haves || []).forEach(r => { nthFreq[r] = (nthFreq[r] || 0) + weight })
+    if (l.role_cluster) clusterCounts[l.role_cluster] = (clusterCounts[l.role_cluster] || 0) + 1
+    if (l.seniority_level) seniorityCounts[l.seniority_level] = (seniorityCounts[l.seniority_level] || 0) + 1
   })
 
-  const topSkills = Object.entries(skillFreq)
+  const fmt = (freq, n) => Object.entries(freq)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 40)
-    .map(([skill, count]) => `${skill} (${Math.round(count / weightedTotal * 100)}%)`)
+    .slice(0, n)
+    .map(([k, c]) => `${k} (${Math.round(c / weightedTotal * 100)}%)`)
     .join(', ')
 
-  const sampleListings = listings.slice(0, 8).map(l =>
-    `- ${l.title} at ${l.company || 'unknown'} [${l.interest_rating}] [${l.role_cluster || 'ux'}]: ${(l.requirements || []).slice(0, 4).join('; ')}`
-  ).join('\n')
+  const topSkills = fmt(skillFreq, 25)
+  const topRequirements = fmt(reqFreq, 20)
+  const topNiceToHaves = fmt(nthFreq, 10)
+  const clusterSummary = Object.entries(clusterCounts).map(([k, v]) => `${k}: ${v}`).join(', ')
+  const senioritySummary = Object.entries(seniorityCounts).map(([k, v]) => `${k}: ${v}`).join(', ')
 
   try {
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+      max_tokens: 2500,
       system: [
         {
           type: 'text',
@@ -52,17 +60,18 @@ export default async function handler(req, res) {
         content: `Analyze this designer's resume against their target job market and return a gap analysis.
 
 RESUME:
-${resume.slice(0, 4000)}
+${resume.slice(0, 3000)}
 
-TOP SKILLS REQUESTED (weighted by interest rating, yes=2x, maybe=1x):
-${topSkills}
-
-SAMPLE TARGET LISTINGS (${listings.length} total):
-${sampleListings}
+MARKET PROFILE (aggregated from ${listings.length} listings, weighted yes=2x / maybe=1x):
+Skills: ${topSkills}
+Requirements: ${topRequirements}
+Nice-to-haves: ${topNiceToHaves}
+Role mix: ${clusterSummary || 'n/a'}
+Seniority mix: ${senioritySummary || 'n/a'}
 
 Return ONLY a JSON object with this exact structure:
 {
-  "summary": "2-3 paragraph honest assessment of positioning, strengths, and main gaps",
+  "summary": "1-2 paragraph honest assessment of positioning, strengths, and main gaps",
   "skills_present": ["skills clearly evident in resume that are highly sought"],
   "skills_partial": ["skills implied or partially demonstrated but not clearly articulated"],
   "skills_missing": ["skills frequently requested that are absent from resume"],
@@ -71,13 +80,13 @@ Return ONLY a JSON object with this exact structure:
       "action": "short action title",
       "priority": "high|medium|low",
       "rationale": "one sentence why this matters",
-      "detail": "specific tactical advice",
-      "resume_suggestion": "example resume bullet or language if applicable, otherwise null"
+      "detail": "specific tactical advice (2-3 sentences max)",
+      "resume_suggestion": "one resume bullet if applicable, otherwise null"
     }
   ]
 }
 
-Order action_plan by impact. Include 8-12 action items. Be specific to a senior/staff UX designer with technical skills (React, JS, Swift, HTML/CSS).`
+Order action_plan by impact. Include 5-7 action items. Be specific to a senior/staff UX designer with technical skills (React, JS, Swift, HTML/CSS).`
       }],
     })
 
