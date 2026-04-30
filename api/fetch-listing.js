@@ -1,6 +1,12 @@
 // api/fetch-listing.js
 // Vercel serverless function — fetches a job URL OR parses pasted text via Claude
 
+import Anthropic from '@anthropic-ai/sdk'
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+const SYSTEM_PROMPT = 'You are a job listing parser. Extract structured data from job posting text and return ONLY valid JSON with no preamble or markdown fences.'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -39,21 +45,19 @@ export default async function handler(req, res) {
         .slice(0, 12000)
     }
 
-    // Use Claude to parse the listing
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        system: `You are a job listing parser. Extract structured data from job posting text and return ONLY valid JSON with no preamble or markdown fences.`,
-        messages: [{
-          role: 'user',
-          content: `Parse this job listing and extract structured data. Return ONLY a JSON object with these exact fields:
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 1500,
+      system: [
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      messages: [{
+        role: 'user',
+        content: `Parse this job listing and extract structured data. Return ONLY a JSON object with these exact fields:
 
 {
   "title": "job title",
@@ -69,13 +73,11 @@ export default async function handler(req, res) {
 
 Job listing text:
 ${text}`
-        }]
-      })
+      }],
     })
 
-    const claudeData = await claudeRes.json()
-    const responseText = claudeData.content?.[0]?.text || '{}'
-    
+    const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '{}'
+
     let parsed
     try {
       parsed = JSON.parse(responseText.replace(/```json\n?|\n?```/g, '').trim())

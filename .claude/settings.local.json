@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npm install *)",
       "Bash(npm ls *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)"
     ]
   }
 }

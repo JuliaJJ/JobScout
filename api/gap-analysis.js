@@ -1,6 +1,12 @@
 // api/gap-analysis.js
 // Vercel serverless function — runs gap analysis between resume and job listings
 
+import Anthropic from '@anthropic-ai/sdk'
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+const SYSTEM_PROMPT = `You are a senior UX/product design career coach. You give specific, actionable advice. Return ONLY valid JSON with no preamble or markdown fences. The candidate is targeting senior, staff, and lead roles in UX design, product design, design engineering, and design technologist tracks.`
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -31,20 +37,19 @@ export default async function handler(req, res) {
   ).join('\n')
 
   try {
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        system: `You are a senior UX/product design career coach. You give specific, actionable advice. Return ONLY valid JSON with no preamble or markdown fences. The candidate is targeting senior, staff, and lead roles in UX design, product design, design engineering, and design technologist tracks.`,
-        messages: [{
-          role: 'user',
-          content: `Analyze this designer's resume against their target job market and return a gap analysis.
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      system: [
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      messages: [{
+        role: 'user',
+        content: `Analyze this designer's resume against their target job market and return a gap analysis.
 
 RESUME:
 ${resume.slice(0, 4000)}
@@ -73,12 +78,10 @@ Return ONLY a JSON object with this exact structure:
 }
 
 Order action_plan by impact. Include 8-12 action items. Be specific to a senior/staff UX designer with technical skills (React, JS, Swift, HTML/CSS).`
-        }]
-      })
+      }],
     })
 
-    const claudeData = await claudeRes.json()
-    const responseText = claudeData.content?.[0]?.text || '{}'
+    const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '{}'
 
     let parsed
     try {
