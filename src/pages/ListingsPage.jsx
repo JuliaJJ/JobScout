@@ -192,7 +192,10 @@ function ListingCard({ listing, onUpdate, onDelete }) {
 
   async function markAsApplied() {
     setApplying(true)
-    await supabase.from('job_listings').update({ application_status: 'applied' }).eq('id', listing.id)
+    await supabase.from('job_listings').update({
+      application_status: 'applied',
+      applied_at: new Date().toISOString(),
+    }).eq('id', listing.id)
     setApplying(false)
     onUpdate()
   }
