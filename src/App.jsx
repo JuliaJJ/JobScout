@@ -1,12 +1,14 @@
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { Layers, FileText, BarChart2, Zap } from 'lucide-react'
+import { Layers, FileText, BarChart2, Zap, Layout } from 'lucide-react'
 import ListingsPage from './pages/ListingsPage.jsx'
 import ResumePage from './pages/ResumePage.jsx'
 import SkillsPage from './pages/SkillsPage.jsx'
 import AnalysisPage from './pages/AnalysisPage.jsx'
+import PipelinePage from './pages/PipelinePage.jsx'
 
 const nav = [
   { to: '/', label: 'Listings', icon: Layers },
+  { to: '/pipeline', label: 'Pipeline', icon: Layout },
   { to: '/skills', label: 'Skills', icon: BarChart2 },
   { to: '/resume', label: 'Resume', icon: FileText },
   { to: '/analysis', label: 'Gap Analysis', icon: Zap },
@@ -71,6 +73,7 @@ export default function App() {
           <Route path="/" element={<ListingsPage />} />
           <Route path="/skills" element={<SkillsPage />} />
           <Route path="/resume" element={<ResumePage />} />
+          <Route path="/pipeline" element={<PipelinePage />} />
           <Route path="/analysis" element={<AnalysisPage />} />
         </Routes>
       </main>

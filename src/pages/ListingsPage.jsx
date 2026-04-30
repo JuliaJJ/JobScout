@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft } from 'lucide-react'
+import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 
 const CLUSTERS = ['ux', 'product-design', 'design-engineer', 'design-technologist', 'other']
@@ -158,11 +158,19 @@ function ListingCard({ listing, onUpdate, onDelete }) {
   const [cluster, setCluster] = useState(listing.role_cluster || 'other')
   const [notes, setNotes] = useState(listing.notes || '')
   const [saving, setSaving] = useState(false)
+  const [applying, setApplying] = useState(false)
 
   async function save(updates) {
     setSaving(true)
     await supabase.from('job_listings').update(updates).eq('id', listing.id)
     setSaving(false)
+    onUpdate()
+  }
+
+  async function markAsApplied() {
+    setApplying(true)
+    await supabase.from('job_listings').update({ application_status: 'applied' }).eq('id', listing.id)
+    setApplying(false)
     onUpdate()
   }
 
@@ -231,7 +239,19 @@ function ListingCard({ listing, onUpdate, onDelete }) {
         </div>
 
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-          {saving && <span className="spinner" />}
+          {(saving || applying) && <span className="spinner" />}
+          {(rating === 'yes' || rating === 'maybe') && (
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '4px 8px', fontSize: 11, gap: 4 }}
+              onClick={markAsApplied}
+              disabled={applying || saving}
+              title="Move to Pipeline as Applied"
+            >
+              <Send size={11} />
+              Applied
+            </button>
+          )}
           <a href={listing.url} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ padding: '5px 8px' }}>
             <ExternalLink size={13} />
           </a>
@@ -295,6 +315,7 @@ export default function ListingsPage() {
       .from('job_listings')
       .select('*')
       .eq('is_archived', false)
+      .is('application_status', null)
       .order('created_at', { ascending: false })
     setListings(data || [])
     setLoading(false)

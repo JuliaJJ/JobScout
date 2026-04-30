@@ -19,6 +19,7 @@ create table job_listings (
   seniority_level text,
   role_cluster text, -- 'ux', 'design-engineer', 'design-technologist', 'product-design', 'other'
   interest_rating text check (interest_rating in ('yes', 'maybe', 'no')) default 'maybe',
+  application_status text check (application_status in ('applied', 'screening', 'interviewing', 'offer', 'closed')),
   notes text,
   is_archived boolean default false
 );
