@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
+import ContactsSection from '../components/ContactsSection.jsx'
 
 const CLUSTERS = ['ux', 'product-design', 'design-engineer', 'design-technologist', 'other']
 const RATINGS = ['yes', 'maybe', 'no']
@@ -290,6 +291,10 @@ function ListingCard({ listing, onUpdate, onDelete }) {
               </ul>
             </div>
           )}
+          <div>
+            <p className="section-header" style={{ marginBottom: 8 }}>Contacts</p>
+            <ContactsSection listing={listing} />
+          </div>
           <div>
             <label className="label">Notes</label>
             <textarea

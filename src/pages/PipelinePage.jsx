@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ExternalLink, Archive, FileText } from 'lucide-react'
+import { ExternalLink, Archive, FileText, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
+import ContactsModal from '../components/ContactsModal.jsx'
 
 const COLUMNS = [
   { status: 'applied', label: 'Applied', color: 'var(--text-primary)' },
@@ -11,7 +12,7 @@ const COLUMNS = [
   { status: 'closed', label: 'Closed', color: 'var(--text-tertiary)', muted: true },
 ]
 
-function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter }) {
+function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter, onContacts }) {
   return (
     <div
       draggable
@@ -29,6 +30,21 @@ function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter }) {
           )}
         </div>
         <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '3px 6px', color: listing.contacts?.length ? 'var(--yes)' : 'var(--text-tertiary)', position: 'relative' }}
+            onClick={() => onContacts(listing)}
+            title="Contacts"
+          >
+            <Users size={11} />
+            {listing.contacts?.length > 0 && (
+              <span style={{
+                position: 'absolute', top: 0, right: 0,
+                width: 8, height: 8, borderRadius: '50%',
+                background: 'var(--yes)', border: '1.5px solid white',
+              }} />
+            )}
+          </button>
           <button
             className="btn btn-ghost"
             style={{ padding: '3px 6px', color: listing.cover_letter ? 'var(--yes)' : 'var(--text-tertiary)' }}
@@ -82,7 +98,7 @@ function KanbanCard({ listing, onDragStart, onArchive, onCoverLetter }) {
   )
 }
 
-function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onCoverLetter }) {
+function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onCoverLetter, onContacts }) {
   const [isDragOver, setIsDragOver] = useState(false)
 
   return (
@@ -142,6 +158,7 @@ function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onCoverLe
             onDragStart={onDragStart}
             onArchive={onArchive}
             onCoverLetter={onCoverLetter}
+            onContacts={onContacts}
           />
         ))}
         {listings.length === 0 && !isDragOver && (
@@ -159,6 +176,7 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true)
   const [draggingId, setDraggingId] = useState(null)
   const [coverLetterListing, setCoverLetterListing] = useState(null)
+  const [contactsListing, setContactsListing] = useState(null)
 
   async function load() {
     const { data } = await supabase
@@ -228,6 +246,7 @@ export default function PipelinePage() {
               onDrop={handleDrop}
               onArchive={handleArchive}
               onCoverLetter={setCoverLetterListing}
+              onContacts={setContactsListing}
             />
           ))}
         </div>
@@ -242,6 +261,16 @@ export default function PipelinePage() {
               l.id === coverLetterListing.id ? { ...l, cover_letter: savedText } : l
             ))
             setCoverLetterListing(null)
+          }}
+        />
+      )}
+
+      {contactsListing && (
+        <ContactsModal
+          listing={contactsListing}
+          onClose={() => {
+            load()
+            setContactsListing(null)
           }}
         />
       )}

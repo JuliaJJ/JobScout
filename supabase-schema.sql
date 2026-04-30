@@ -21,6 +21,7 @@ create table job_listings (
   interest_rating text check (interest_rating in ('yes', 'maybe', 'no')) default 'maybe',
   application_status text check (application_status in ('applied', 'screening', 'interviewing', 'offer', 'closed')),
   cover_letter text,
+  contacts jsonb default '[]', -- array of { id, name, role, email, linkedin, date, notes }
   notes text,
   is_archived boolean default false
 );
