@@ -1,17 +1,30 @@
 import { useState, useEffect } from 'react'
-import { ExternalLink, Archive, FileText, Users, Briefcase, RotateCcw } from 'lucide-react'
+import { ExternalLink, Archive, FileText, Users, Briefcase, RotateCcw, ArrowLeft, Scale } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
 import ContactsModal from '../components/ContactsModal.jsx'
 import RelevantPiecesModal from '../components/RelevantPiecesModal.jsx'
 
 const COLUMNS = [
-  { status: 'applied', label: 'Applied', color: 'var(--text-primary)' },
-  { status: 'screening', label: 'Screening', color: 'var(--maybe)' },
+  { status: 'applied',      label: 'Applied',      color: 'var(--text-primary)' },
+  { status: 'screening',    label: 'Screening',    color: 'var(--maybe)' },
   { status: 'interviewing', label: 'Interviewing', color: 'var(--yes)' },
-  { status: 'offer', label: 'Offer', color: '#7c3aed' },
-  { status: 'closed', label: 'Closed', color: 'var(--text-tertiary)', muted: true },
+  { status: 'offer',        label: 'Offer',        color: '#7c3aed' },
+  { status: 'closed',       label: 'Closed',       color: 'var(--text-tertiary)', muted: true },
 ]
+
+const OFFER_ROWS = [
+  { key: 'base_salary',   label: 'Base Salary', type: 'salary',  placeholder: '180000' },
+  { key: 'equity',        label: 'Equity',                       placeholder: 'e.g. $200k RSUs / 4yr' },
+  { key: 'bonus',         label: 'Bonus',                        placeholder: 'e.g. 15% target' },
+  { key: 'remote_policy', label: 'Remote',                       placeholder: 'e.g. Hybrid 2d/wk' },
+  { key: 'pto',           label: 'PTO',                          placeholder: 'e.g. Unlimited' },
+  { key: 'benefits',      label: 'Benefits',     multiline: true, placeholder: 'Health, dental, 401k match…' },
+  { key: 'score',         label: 'Overall',      type: 'stars' },
+  { key: 'notes',         label: 'Notes',        multiline: true, placeholder: 'Gut feelings, concerns, questions…' },
+]
+
+// ─── Kanban ───────────────────────────────────────────────────────────────────
 
 function KanbanCard({ listing, onDragStart, onArchive, onMoveBack, onCoverLetter, onContacts, onPortfolio }) {
   return (
@@ -196,8 +209,165 @@ function KanbanColumn({ col, listings, onDragStart, onDrop, onArchive, onMoveBac
   )
 }
 
+// ─── Offer Comparison ─────────────────────────────────────────────────────────
+
+function StarRating({ value, onChange }) {
+  const [hover, setHover] = useState(null)
+  return (
+    <div style={{ display: 'flex', gap: 1 }}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          onClick={() => onChange(n === value ? null : n)}
+          onMouseEnter={() => setHover(n)}
+          onMouseLeave={() => setHover(null)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '2px 2px',
+            fontSize: 18,
+            lineHeight: 1,
+            color: n <= (hover ?? value ?? 0) ? '#f59e0b' : 'var(--border)',
+            transition: 'color 0.1s',
+          }}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function OfferCell({ value, onSave, placeholder, multiline, type }) {
+  function fmt(v) {
+    if (v == null || v === '') return ''
+    if (type === 'salary') return Number(v).toLocaleString()
+    return String(v)
+  }
+
+  const [local, setLocal] = useState(fmt(value))
+
+  useEffect(() => { setLocal(fmt(value)) }, [value, type])
+
+  function handleBlur() {
+    let parsed
+    if (type === 'salary') {
+      const n = parseInt(local.replace(/[^0-9]/g, ''), 10)
+      parsed = isNaN(n) ? null : n
+    } else {
+      parsed = local.trim() || null
+    }
+    if (parsed !== value) onSave(parsed)
+  }
+
+  const shared = {
+    className: 'input',
+    value: local,
+    onChange: e => setLocal(e.target.value),
+    onBlur: handleBlur,
+    placeholder,
+    style: { width: '100%', fontSize: 13 },
+  }
+
+  return multiline
+    ? <textarea {...shared} style={{ ...shared.style, minHeight: 72, resize: 'vertical' }} />
+    : <input {...shared} />
+}
+
+function OffersView({ offerListings, offerDetails, onSaveField, onBack }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+        <button
+          className="btn btn-ghost"
+          onClick={onBack}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px' }}
+        >
+          <ArrowLeft size={13} /> Pipeline
+        </button>
+        <span style={{ color: 'var(--border)' }}>·</span>
+        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Compare Offers</h2>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: 130 }} />
+            {offerListings.map(l => <col key={l.id} style={{ minWidth: 220 }} />)}
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 14px', borderBottom: '2px solid var(--border)' }} />
+              {offerListings.map(l => (
+                <th
+                  key={l.id}
+                  style={{
+                    padding: '12px 16px',
+                    textAlign: 'left',
+                    borderBottom: '2px solid #7c3aed',
+                    verticalAlign: 'bottom',
+                  }}
+                >
+                  <p style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{l.title || 'Untitled role'}</p>
+                  {l.company && (
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>{l.company}</p>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {OFFER_ROWS.map((row, i) => (
+              <tr
+                key={row.key}
+                style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg)' }}
+              >
+                <td style={{
+                  padding: '12px 14px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  verticalAlign: 'top',
+                  whiteSpace: 'nowrap',
+                  borderRight: '1px solid var(--border)',
+                }}>
+                  {row.label}
+                </td>
+                {offerListings.map(l => {
+                  const details = offerDetails[l.id] || {}
+                  const val = details[row.key] ?? null
+                  return (
+                    <td key={l.id} style={{ padding: '10px 16px', verticalAlign: 'top' }}>
+                      {row.type === 'stars' ? (
+                        <StarRating value={val} onChange={v => onSaveField(l.id, row.key, v)} />
+                      ) : (
+                        <OfferCell
+                          value={val}
+                          onSave={v => onSaveField(l.id, row.key, v)}
+                          placeholder={row.placeholder}
+                          multiline={row.multiline}
+                          type={row.type}
+                        />
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function PipelinePage() {
   const [listings, setListings] = useState([])
+  const [offerDetails, setOfferDetails] = useState({})
+  const [view, setView] = useState('kanban')
   const [loading, setLoading] = useState(true)
   const [draggingId, setDraggingId] = useState(null)
   const [coverLetterListing, setCoverLetterListing] = useState(null)
@@ -205,17 +375,28 @@ export default function PipelinePage() {
   const [portfolioListing, setPortfolioListing] = useState(null)
 
   async function load() {
-    const { data } = await supabase
-      .from('job_listings')
-      .select('*')
-      .eq('is_archived', false)
-      .not('application_status', 'is', null)
-      .order('created_at', { ascending: false })
-    setListings(data || [])
+    const [{ data: listingsData }, { data: detailsData }] = await Promise.all([
+      supabase
+        .from('job_listings')
+        .select('*')
+        .eq('is_archived', false)
+        .not('application_status', 'is', null)
+        .order('created_at', { ascending: false }),
+      supabase.from('offer_details').select('*'),
+    ])
+    setListings(listingsData || [])
+    const map = {}
+    for (const d of detailsData || []) map[d.listing_id] = d
+    setOfferDetails(map)
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
+
+  // Auto-reset to kanban if offers drop below 2
+  useEffect(() => {
+    if (view === 'offers' && byStatus('offer').length < 2) setView('kanban')
+  }, [listings])
 
   function handleDragStart(e, id) {
     setDraggingId(id)
@@ -240,22 +421,61 @@ export default function PipelinePage() {
     load()
   }
 
+  async function saveOfferField(listingId, field, value) {
+    const existing = offerDetails[listingId]
+    if (existing?.id) {
+      await supabase
+        .from('offer_details')
+        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+      setOfferDetails(prev => ({ ...prev, [listingId]: { ...prev[listingId], [field]: value } }))
+    } else {
+      const { data } = await supabase
+        .from('offer_details')
+        .insert({ listing_id: listingId, [field]: value })
+        .select()
+        .single()
+      if (data) setOfferDetails(prev => ({ ...prev, [listingId]: data }))
+    }
+  }
+
   const byStatus = (status) => listings.filter(l => l.application_status === status)
   const active = listings.filter(l => l.application_status !== 'closed').length
+  const offerListings = byStatus('offer')
+  const canCompare = offerListings.length >= 2
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Pipeline</h1>
-        <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
-          {active} active application{active !== 1 ? 's' : ''} · drag cards between columns to update status
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Pipeline</h1>
+          <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
+            {active} active application{active !== 1 ? 's' : ''} · drag cards between columns to update status
+          </p>
+        </div>
+        {canCompare && view === 'kanban' && (
+          <button
+            className="btn btn-secondary"
+            onClick={() => setView('offers')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Scale size={13} />
+            Compare Offers ({offerListings.length})
+          </button>
+        )}
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-tertiary)' }}>
           <span className="spinner" style={{ margin: '0 auto' }} />
         </div>
+      ) : view === 'offers' ? (
+        <OffersView
+          offerListings={offerListings}
+          offerDetails={offerDetails}
+          onSaveField={saveOfferField}
+          onBack={() => setView('kanban')}
+        />
       ) : listings.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-tertiary)' }}>
           No applications yet. Mark a listing as "Applied" from the Listings page to get started.
