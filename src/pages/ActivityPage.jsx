@@ -119,6 +119,16 @@ export default function ActivityPage() {
   const recentSaved = events.filter(e => e.type === 'saved' && e.date >= cutoff30).length
   const recentApplied = events.filter(e => e.type === 'applied' && e.date >= cutoff30).length
 
+  // Conversion funnel — cumulative: each stage includes listings that reached it or progressed further
+  const funnelStages = [
+    { label: 'Researched',   count: listings.length,                                                                                 color: '#d1d5db' },
+    { label: 'Applied',      count: listings.filter(l => l.application_status).length,                                              color: '#93c5fd' },
+    { label: 'Screening',    count: listings.filter(l => ['screening','interviewing','offer'].includes(l.application_status)).length, color: 'var(--maybe)' },
+    { label: 'Interviewing', count: listings.filter(l => ['interviewing','offer'].includes(l.application_status)).length,           color: 'var(--yes)' },
+    { label: 'Offer',        count: listings.filter(l => l.application_status === 'offer').length,                                  color: '#7c3aed' },
+  ]
+  const maxFunnelCount = Math.max(1, funnelStages[0].count)
+
   // Weekly chart
   const weeks = getLast10Weeks()
   const weekData = weeks.map(weekStart => {
@@ -163,6 +173,42 @@ export default function ActivityPage() {
             </span>
           </div>
         ))}
+      </div>
+
+      {/* Conversion funnel */}
+      <div className="card" style={{ padding: '20px 24px', marginBottom: 20 }}>
+        <p className="section-header" style={{ marginBottom: 16 }}>Conversion funnel</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {funnelStages.map((stage, i) => {
+            const barPct = (stage.count / maxFunnelCount) * 100
+            const rate = i > 0 && funnelStages[i - 1].count > 0
+              ? Math.round((stage.count / funnelStages[i - 1].count) * 100)
+              : null
+            return (
+              <div key={stage.label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', width: 96, flexShrink: 0, textAlign: 'right' }}>
+                  {stage.label}
+                </span>
+                <div style={{ flex: 1, height: 18, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${barPct}%`,
+                    height: '100%',
+                    background: stage.color,
+                    borderRadius: 3,
+                    transition: 'width 0.4s',
+                    minWidth: stage.count > 0 ? 4 : 0,
+                  }} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'DM Mono', width: 32, textAlign: 'right', flexShrink: 0 }}>
+                  {stage.count}
+                </span>
+                <span style={{ fontSize: 11, fontFamily: 'DM Mono', color: 'var(--text-tertiary)', width: 52, flexShrink: 0 }}>
+                  {rate !== null ? `→ ${rate}%` : ''}
+                </span>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* Weekly chart */}
