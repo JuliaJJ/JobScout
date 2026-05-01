@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Zap, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Zap, RefreshCw, ChevronDown, ChevronUp, PenLine } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import { serialize } from '../lib/resumeUtils.js'
+
+// ── Existing analysis components ───────────────────────────────────────────────
 
 function ActionItem({ item, index }) {
   const [open, setOpen] = useState(false)
@@ -69,12 +72,201 @@ function SkillsGrid({ skills, type }) {
   )
 }
 
+// ── Resume Workshop ────────────────────────────────────────────────────────────
+
+function WorkshopCard({ skill, type, roles, structuredData, resumeId, onBulletAdded }) {
+  const [description, setDescription] = useState('')
+  const [drafting, setDrafting] = useState(false)
+  const [drafts, setDrafts] = useState([])
+  const [selected, setSelected] = useState(null)
+  const [expId, setExpId] = useState(roles[0]?.id || '')
+  const [saving, setSaving] = useState(false)
+  const [savedTo, setSavedTo] = useState([])
+
+  // Keep expId in sync if roles change after initial render
+  useEffect(() => {
+    if (!expId && roles[0]?.id) setExpId(roles[0].id)
+  }, [roles])
+
+  const typeStyle = type === 'partial'
+    ? { bg: 'var(--maybe-bg)', text: 'var(--maybe)', border: '#fde68a', label: 'partially addressed' }
+    : { bg: 'var(--no-bg)', text: 'var(--no)', border: '#fecaca', label: 'not on resume' }
+
+  async function generateDrafts() {
+    if (!description.trim()) return
+    setDrafting(true)
+    setDrafts([])
+    setSelected(null)
+    try {
+      const res = await fetch('/api/draft-bullet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skill,
+          description: description.trim(),
+          roles: roles.map(r => ({ title: r.title, company: r.company })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setDrafts(data.bullets || [])
+      if (data.bullets?.length) setSelected(0)
+    } catch (e) {
+      alert('Failed to draft bullets: ' + e.message)
+    } finally {
+      setDrafting(false)
+    }
+  }
+
+  async function addToResume() {
+    if (selected === null || !expId || !structuredData) return
+    setSaving(true)
+    try {
+      const bullet = drafts[selected]
+      const updated = {
+        ...structuredData,
+        experience: structuredData.experience.map(e =>
+          e.id === expId
+            ? { ...e, bullets: [...(e.bullets || []).filter(Boolean), bullet] }
+            : e
+        ),
+      }
+      const content = serialize(updated)
+      await supabase
+        .from('resume_versions')
+        .update({ structured_data: updated, content })
+        .eq('id', resumeId)
+      const role = roles.find(r => r.id === expId)
+      setSavedTo(prev => [...prev, `${role?.title || 'role'} at ${role?.company || ''}`])
+      onBulletAdded(updated)
+    } catch (e) {
+      alert('Failed to save: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: 18 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ fontWeight: 500, fontSize: 14 }}>{skill}</span>
+        <span style={{
+          fontSize: 10, fontFamily: 'DM Mono', padding: '2px 8px', borderRadius: 100,
+          background: typeStyle.bg, color: typeStyle.text, border: `1px solid ${typeStyle.border}`,
+        }}>
+          {typeStyle.label}
+        </span>
+      </div>
+
+      {/* Description input */}
+      <label className="label" style={{ marginBottom: 4 }}>Describe your experience with this</label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <textarea
+          className="input"
+          style={{ flex: 1, fontSize: 13, lineHeight: 1.6, minHeight: 64, resize: 'vertical' }}
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder={`How have you worked with ${skill}? Describe a specific project or situation — rough language is fine.`}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generateDrafts()
+          }}
+        />
+        <button
+          className="btn btn-secondary"
+          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+          onClick={generateDrafts}
+          disabled={drafting || !description.trim()}
+        >
+          {drafting
+            ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> Drafting…</>
+            : 'Draft bullets →'
+          }
+        </button>
+      </div>
+      {!drafting && !drafts.length && (
+        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>⌘ Enter to generate</p>
+      )}
+
+      {/* Draft options */}
+      {drafts.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <label className="label" style={{ marginBottom: 6 }}>Pick a bullet</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {drafts.map((b, i) => (
+              <div
+                key={i}
+                onClick={() => setSelected(i)}
+                style={{
+                  padding: '10px 14px', borderRadius: 6,
+                  border: '1px solid',
+                  borderColor: selected === i ? 'var(--accent)' : 'var(--border)',
+                  background: selected === i ? '#fafaf8' : 'white',
+                  cursor: 'pointer', fontSize: 13, lineHeight: 1.6,
+                  color: 'var(--text-secondary)',
+                  transition: 'border-color 0.1s',
+                }}
+              >
+                {b}
+              </div>
+            ))}
+          </div>
+
+          {/* Add-to row */}
+          <div style={{ marginTop: 12 }}>
+            {roles.length > 0 ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Add to</span>
+                <select
+                  className="input"
+                  style={{ flex: 1, fontSize: 13 }}
+                  value={expId}
+                  onChange={e => setExpId(e.target.value)}
+                >
+                  {roles.map(r => (
+                    <option key={r.id} value={r.id}>{r.title} at {r.company}</option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-primary"
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  onClick={addToResume}
+                  disabled={saving || selected === null}
+                >
+                  {saving ? 'Saving…' : 'Add to resume'}
+                </button>
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                Add experience entries on the Resume page to save bullets directly.
+              </p>
+            )}
+
+            {savedTo.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {savedTo.map((name, i) => (
+                  <p key={i} style={{ fontSize: 12, color: 'var(--yes)', fontFamily: 'DM Mono' }}>
+                    ✓ Added to {name}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
+
 export default function AnalysisPage() {
   const [resume, setResume] = useState(null)
   const [listings, setListings] = useState([])
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(false)
   const [pastAnalyses, setPastAnalyses] = useState([])
+  const [liveStructured, setLiveStructured] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -84,6 +276,7 @@ export default function AnalysisPage() {
         supabase.from('gap_analyses').select('*').order('created_at', { ascending: false }).limit(5),
       ])
       setResume(rv)
+      if (rv?.structured_data) setLiveStructured(rv.structured_data)
       setListings(jl || [])
       setPastAnalyses(ga || [])
     }
@@ -121,7 +314,6 @@ export default function AnalysisPage() {
       }
       if (!res.ok) throw new Error(data.error)
 
-      // Save to DB
       const { data: saved } = await supabase.from('gap_analyses').insert({
         resume_version_id: resume.id,
         listing_count: listings.length,
@@ -146,6 +338,15 @@ export default function AnalysisPage() {
 
   const hasData = resume && listings.length > 0
   const current = analysis
+
+  // Skills to address in the workshop: partial first (you do them, just unarticulated),
+  // then missing (genuine gaps worth exploring)
+  const workshopSkills = current ? [
+    ...(current.skills_partial || []).map(s => ({ skill: s, type: 'partial' })),
+    ...(current.skills_missing || []).map(s => ({ skill: s, type: 'missing' })),
+  ] : []
+
+  const hasStructuredExperience = liveStructured?.experience?.length > 0
 
   return (
     <div>
@@ -238,6 +439,38 @@ export default function AnalysisPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {current.action_plan.map((item, i) => (
                   <ActionItem key={i} item={item} index={i} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Resume Workshop */}
+          {workshopSkills.length > 0 && (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <p className="section-header" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <PenLine size={11} /> Resume Workshop
+                </p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Describe your experience with each skill in plain language — get polished resume bullets back.
+                  {!hasStructuredExperience && (
+                    <span style={{ color: 'var(--maybe)', marginLeft: 6 }}>
+                      Set up your structured resume to save bullets directly.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {workshopSkills.map(({ skill, type }) => (
+                  <WorkshopCard
+                    key={skill}
+                    skill={skill}
+                    type={type}
+                    roles={liveStructured?.experience || []}
+                    structuredData={liveStructured}
+                    resumeId={resume?.id}
+                    onBulletAdded={updated => setLiveStructured(updated)}
+                  />
                 ))}
               </div>
             </div>
