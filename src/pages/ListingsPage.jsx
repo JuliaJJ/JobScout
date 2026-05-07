@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText } from 'lucide-react'
+import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText, Wand2 } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
+import TailorResumeModal from '../components/TailorResumeModal.jsx'
 import ContactsSection from '../components/ContactsSection.jsx'
 
 function formatSalary(min, max) {
@@ -173,6 +174,8 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
   const [applying, setApplying] = useState(false)
   const [showCoverLetter, setShowCoverLetter] = useState(false)
   const [coverLetter, setCoverLetter] = useState(listing.cover_letter || '')
+  const [showTailoring, setShowTailoring] = useState(false)
+  const [tailoring, setTailoring] = useState(listing.resume_tailoring || null)
   const [salaryMin, setSalaryMin] = useState(listing.salary_min ?? '')
   const [salaryMax, setSalaryMax] = useState(listing.salary_max ?? '')
 
@@ -402,6 +405,50 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
             )}
           </div>
 
+          {/* Resume tailoring */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <label className="label" style={{ marginBottom: 0 }}>Resume tailoring</label>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: 11, gap: 5, padding: '4px 8px' }}
+                onClick={() => setShowTailoring(true)}
+              >
+                <Wand2 size={11} />
+                {tailoring ? 'Review / regenerate' : 'Generate suggestions'}
+              </button>
+            </div>
+            {tailoring ? (
+              <div
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '10px 12px', cursor: 'pointer' }}
+                onClick={() => setShowTailoring(true)}
+              >
+                {(() => {
+                  const accepted = tailoring.bullet_rewrites?.filter(b => b.accepted).length ?? 0
+                  const total = tailoring.bullet_rewrites?.length ?? 0
+                  return (
+                    <div>
+                      {total > 0 && (
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: tailoring.keywords?.length ? 6 : 0 }}>
+                          {accepted}/{total} bullet suggestion{total !== 1 ? 's' : ''} accepted
+                        </p>
+                      )}
+                      {tailoring.keywords?.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {tailoring.keywords.slice(0, 6).map(k => (
+                            <span key={k} className="skill-pill" style={{ fontSize: 10, padding: '1px 5px' }}>{k}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>No tailoring suggestions yet.</p>
+            )}
+          </div>
+
           {/* Relevant portfolio */}
           {(() => {
             const relevant = portfolioPieces.filter(p =>
@@ -439,6 +486,17 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
           onSaved={(savedText) => {
             setCoverLetter(savedText)
             setShowCoverLetter(false)
+          }}
+        />
+      )}
+
+      {showTailoring && (
+        <TailorResumeModal
+          listing={{ ...listing, resume_tailoring: tailoring }}
+          onClose={() => setShowTailoring(false)}
+          onSaved={(saved) => {
+            setTailoring(saved)
+            setShowTailoring(false)
           }}
         />
       )}
