@@ -5,12 +5,42 @@ import { supabase } from '../lib/supabase.js'
 function parseMdxFrontmatter(text) {
   const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!match) return { meta: {}, body: text.trim() }
+
+  const lines = match[1].split('\n')
   const meta = {}
-  for (const line of match[1].split('\n')) {
-    const colon = line.indexOf(':')
-    if (colon === -1) continue
-    meta[line.slice(0, colon).trim()] = line.slice(colon + 1).trim()
+  let key = null
+  let mode = null // 'block' | 'list'
+  let acc = []
+
+  function commit() {
+    if (!key) return
+    if (mode === 'block') meta[key] = acc.join(' ').replace(/\s+/g, ' ').trim()
+    else if (mode === 'list') meta[key] = acc
+    key = null; mode = null; acc = []
   }
+
+  for (const line of lines) {
+    if (/^\w[\w_]*\s*:/.test(line)) {
+      commit()
+      const colon = line.indexOf(':')
+      key = line.slice(0, colon).trim()
+      const val = line.slice(colon + 1).trim()
+      if (val === '>-' || val === '>' || val === '|-' || val === '|') {
+        mode = 'block'; acc = []
+      } else if (val === '') {
+        mode = 'list'; acc = []
+      } else {
+        meta[key] = val; key = null; acc = []
+      }
+    } else if (mode === 'block' && /^\s+\S/.test(line)) {
+      acc.push(line.trim())
+    } else if (mode === 'list' && /^\s+-\s+/.test(line)) {
+      const item = line.replace(/^\s+-\s+/, '')
+      if (!item.includes(':')) acc.push(item) // skip complex object items
+    }
+  }
+  commit()
+
   return { meta, body: text.slice(match[0].length).trim() }
 }
 
@@ -56,14 +86,23 @@ function PieceModal({ piece, onClose, onSaved }) {
     const { meta } = parseMdxFrontmatter(text)
     setMdxContent(text)
     setMdxFilename(file.name)
+
+    const skillsStr = Array.isArray(meta.skills)
+      ? meta.skills.join(', ')
+      : (meta.skills || '')
+
+    const clustersRaw = Array.isArray(meta.role_clusters)
+      ? meta.role_clusters
+      : (meta.role_clusters || '').split(',').map(s => s.trim())
+
     setForm(f => ({
       ...f,
       title: f.title || meta.title || '',
-      description: f.description || meta.description || '',
-      skillsRaw: f.skillsRaw || meta.skills || '',
+      description: f.description || meta.summary || meta.description || '',
+      skillsRaw: f.skillsRaw || skillsStr,
       role_clusters: f.role_clusters.length
         ? f.role_clusters
-        : (meta.role_clusters || '').split(',').map(s => s.trim()).filter(c => CLUSTERS.includes(c)),
+        : clustersRaw.filter(c => CLUSTERS.includes(c)),
     }))
   }
 
@@ -208,7 +247,7 @@ function PieceModal({ piece, onClose, onSaved }) {
             )}
             {mdxContent && (
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>
-                Frontmatter fields (title, description, skills, role_clusters) were used to pre-fill the form above.
+                Reads frontmatter: title, summary/description, skills (list or comma-separated), role_clusters.
               </p>
             )}
           </div>
