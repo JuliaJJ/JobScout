@@ -73,8 +73,12 @@ create table portfolio_pieces (
   description text,
   url text,
   role_clusters jsonb default '[]', -- subset of: ux, product-design, design-engineer, design-technologist
-  skills jsonb default '[]'
+  skills jsonb default '[]',
+  mdx_content text -- raw .mdx file content for case study uploads
 );
+
+-- Migration: add mdx_content to existing portfolio_pieces tables
+-- alter table portfolio_pieces add column if not exists mdx_content text;
 
 -- RLS: disable for personal tool (single user)
 alter table job_listings disable row level security;

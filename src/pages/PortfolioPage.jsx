@@ -1,6 +1,18 @@
-import { useState, useEffect } from 'react'
-import { Plus, ExternalLink, Pencil, Trash2, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, ExternalLink, Pencil, Trash2, X, FileText, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+
+function parseMdxFrontmatter(text) {
+  const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (!match) return { meta: {}, body: text.trim() }
+  const meta = {}
+  for (const line of match[1].split('\n')) {
+    const colon = line.indexOf(':')
+    if (colon === -1) continue
+    meta[line.slice(0, colon).trim()] = line.slice(colon + 1).trim()
+  }
+  return { meta, body: text.slice(match[0].length).trim() }
+}
 
 const CLUSTERS = ['ux', 'product-design', 'design-engineer', 'design-technologist']
 const TYPES = ['Case Study', 'Project', 'Prototype', 'Research', 'Side Project', 'Other']
@@ -19,6 +31,9 @@ function blankForm() {
 function PieceModal({ piece, onClose, onSaved }) {
   const [form, setForm] = useState(blankForm)
   const [saving, setSaving] = useState(false)
+  const [mdxContent, setMdxContent] = useState(null)
+  const [mdxFilename, setMdxFilename] = useState('')
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     if (piece) {
@@ -30,8 +45,27 @@ function PieceModal({ piece, onClose, onSaved }) {
         role_clusters: piece.role_clusters || [],
         skillsRaw: (piece.skills || []).join(', '),
       })
+      if (piece.mdx_content) setMdxContent(piece.mdx_content)
     }
   }, [piece])
+
+  async function handleMdxFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const text = await file.text()
+    const { meta } = parseMdxFrontmatter(text)
+    setMdxContent(text)
+    setMdxFilename(file.name)
+    setForm(f => ({
+      ...f,
+      title: f.title || meta.title || '',
+      description: f.description || meta.description || '',
+      skillsRaw: f.skillsRaw || meta.skills || '',
+      role_clusters: f.role_clusters.length
+        ? f.role_clusters
+        : (meta.role_clusters || '').split(',').map(s => s.trim()).filter(c => CLUSTERS.includes(c)),
+    }))
+  }
 
   function set(key, val) {
     setForm(f => ({ ...f, [key]: val }))
@@ -56,6 +90,7 @@ function PieceModal({ piece, onClose, onSaved }) {
       url: form.url.trim() || null,
       role_clusters: form.role_clusters,
       skills: form.skillsRaw.split(',').map(s => s.trim()).filter(Boolean),
+      mdx_content: mdxContent ?? (piece?.mdx_content || null),
     }
     if (piece?.id) {
       await supabase.from('portfolio_pieces').update(payload).eq('id', piece.id)
@@ -144,6 +179,39 @@ function PieceModal({ piece, onClose, onSaved }) {
             <input className="input" placeholder="Figma, user research, React, prototyping…"
               value={form.skillsRaw} onChange={e => set('skillsRaw', e.target.value)} />
           </div>
+
+          <div>
+            <label className="label">Case study file <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>(.mdx)</span></label>
+            <input ref={fileInputRef} type="file" accept=".mdx" style={{ display: 'none' }} onChange={handleMdxFile} />
+            {mdxContent ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13 }}>
+                <FileText size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                <span style={{ color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {mdxFilename || 'Case study attached'}
+                </span>
+                <button className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 11 }} onClick={() => fileInputRef.current?.click()}>
+                  Replace
+                </button>
+                <button className="btn btn-ghost" style={{ padding: '2px 6px', fontSize: 11, color: 'var(--no)' }} onClick={() => { setMdxContent(null); setMdxFilename('') }}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <button
+                className="btn btn-secondary"
+                style={{ width: '100%', gap: 6, justifyContent: 'center', padding: '9px 12px', borderStyle: 'dashed' }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={13} />
+                Upload .mdx file
+              </button>
+            )}
+            {mdxContent && (
+              <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>
+                Frontmatter fields (title, description, skills, role_clusters) were used to pre-fill the form above.
+              </p>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -157,7 +225,40 @@ function PieceModal({ piece, onClose, onSaved }) {
   )
 }
 
+function CaseStudyViewer({ piece, onClose }) {
+  const { body } = parseMdxFrontmatter(piece.mdx_content || '')
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onClose}
+    >
+      <div
+        className="card animate-in"
+        style={{ width: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileText size={14} style={{ color: 'var(--text-secondary)' }} />
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{piece.title}</span>
+            <span className="badge badge-neutral">case study</span>
+          </div>
+          <button className="btn btn-ghost" style={{ padding: '5px 8px' }} onClick={onClose}>
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ overflowY: 'auto', padding: '20px 24px', flex: 1 }}>
+          <pre style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, lineHeight: 1.8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-primary)', margin: 0 }}>
+            {body}
+          </pre>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PieceCard({ piece, onEdit, onDelete }) {
+  const [showCaseStudy, setShowCaseStudy] = useState(false)
   return (
     <div className="card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -173,6 +274,11 @@ function PieceCard({ piece, onEdit, onDelete }) {
           )}
         </div>
         <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          {piece.mdx_content && (
+            <button className="btn btn-ghost" style={{ padding: '5px 7px', color: 'var(--text-secondary)' }} title="View case study" onClick={() => setShowCaseStudy(true)}>
+              <FileText size={12} />
+            </button>
+          )}
           {piece.url && (
             <a href={piece.url} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ padding: '5px 7px' }}>
               <ExternalLink size={12} />
@@ -208,6 +314,15 @@ function PieceCard({ piece, onEdit, onDelete }) {
           )}
         </div>
       )}
+
+      {piece.mdx_content && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingTop: 2 }}>
+          <FileText size={11} style={{ color: 'var(--text-tertiary)' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'DM Mono' }}>case study attached</span>
+        </div>
+      )}
+
+      {showCaseStudy && <CaseStudyViewer piece={piece} onClose={() => setShowCaseStudy(false)} />}
     </div>
   )
 }
