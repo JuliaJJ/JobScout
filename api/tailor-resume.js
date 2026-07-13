@@ -2,13 +2,19 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const SYSTEM_PROMPT = `You are a career coach specializing in UX, product design, and design engineering roles at tech companies. Given a resume and a job listing, you identify specific resume bullets worth rewording for this role and generate improved versions that incorporate the listing's language and keywords. You only suggest rewrites for content genuinely present in the resume — never invent achievements. Return only valid JSON.`
+const SYSTEM_PROMPT = `You are a career coach specializing in UX, product design, and design engineering roles at tech companies. Given a resume, a job listing, and (optionally) portfolio projects, you identify specific resume bullets worth rewording for this role, and portfolio-grounded experience worth adding as new bullets. You only suggest content genuinely present in the resume or portfolio — never invent achievements. Return only valid JSON.`
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { listing, resume } = req.body
+  const { listing, resume, portfolio } = req.body
   if (!resume?.trim()) return res.status(400).json({ error: 'No active resume found' })
+
+  const portfolioContext = (portfolio || []).map(p => {
+    const skills = (p.skills || []).join(', ')
+    const desc = (p.description || p.mdx_content || '').replace(/\s+/g, ' ').trim().slice(0, 300)
+    return `- "${p.title}" (${p.type || 'Project'})${skills ? ` — skills: ${skills}` : ''}${desc ? `\n  ${desc}` : ''}`
+  }).join('\n')
 
   const listingContext = [
     listing.title && `Title: ${listing.title}`,
@@ -40,6 +46,7 @@ ${listingContext}
 RESUME:
 ${resume.slice(0, 4000)}
 
+${portfolioContext ? `PORTFOLIO PROJECTS:\n${portfolioContext}\n` : ''}
 Return exactly this JSON shape — no prose, no markdown fences:
 {
   "bullet_rewrites": [
@@ -47,6 +54,12 @@ Return exactly this JSON shape — no prose, no markdown fences:
       "original": "close quote of existing resume text",
       "suggestion": "rewritten version using the listing's language and framing",
       "reason": "one sentence: what this change achieves"
+    },
+    {
+      "original": null,
+      "portfolio_piece": "exact title of a portfolio project not otherwise reflected in the resume",
+      "suggestion": "a new resume bullet grounded only in that project's description",
+      "reason": "one sentence: why this closes a gap for this listing"
     }
   ],
   "keywords": ["term1", "term2"],
@@ -54,7 +67,7 @@ Return exactly this JSON shape — no prose, no markdown fences:
 }
 
 Rules:
-- bullet_rewrites: 2–4 bullets. Pick ones where the gap between resume language and JD language is largest. Quote "original" closely enough that the candidate can find it with Cmd+F. The suggestion should preserve substance while adopting the listing's vocabulary and specific framing.
+- bullet_rewrites: 2–4 bullets total. Prefer rewording existing resume bullets where the gap between resume language and JD language is largest, quoting "original" closely enough that the candidate can find it with Cmd+F. Only include a portfolio-grounded entry (original: null) if a listed portfolio project demonstrates something the resume doesn't already cover — don't force one if none fits.
 - keywords: 4–6 specific terms from the JD worth incorporating that aren't already prominent in the resume (e.g. "design craft", "0→1", "design tokens", "mixed-methods research" — not generic terms like "collaboration").
 - coaching: 2–3 concise strategic notes about ordering or emphasis (e.g. "Lead with your design systems work — it's the top requirement but appears third in your experience section"). Be specific, not generic.`,
         },

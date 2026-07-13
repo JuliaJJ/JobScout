@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Copy, Check, RefreshCw, Save, X } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import { filterRelevantPortfolio } from '../lib/portfolioUtils.js'
 
 export default function CoverLetterModal({ listing, onClose, onSaved }) {
   const [resume, setResume] = useState(null)
+  const [portfolio, setPortfolio] = useState([])
   const [text, setText] = useState(listing.cover_letter || '')
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -13,16 +15,16 @@ export default function CoverLetterModal({ listing, onClose, onSaved }) {
 
   useEffect(() => {
     async function fetchResume() {
-      const { data } = await supabase
-        .from('resume_versions')
-        .select('content')
-        .eq('is_active', true)
-        .single()
+      const [{ data }, { data: pieces }] = await Promise.all([
+        supabase.from('resume_versions').select('content').eq('is_active', true).single(),
+        supabase.from('portfolio_pieces').select('*'),
+      ])
       if (data?.content) {
         setResume(data.content)
       } else {
         setResumeMissing(true)
       }
+      setPortfolio(filterRelevantPortfolio(pieces, listing.role_cluster))
     }
     fetchResume()
   }, [])
@@ -35,7 +37,11 @@ export default function CoverLetterModal({ listing, onClose, onSaved }) {
       const res = await fetch('/api/cover-letter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resume, listing }),
+        body: JSON.stringify({
+          resume,
+          listing,
+          portfolio: portfolio.map(p => ({ title: p.title, type: p.type, skills: p.skills, description: p.description, mdx_content: p.mdx_content })),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')

@@ -48,13 +48,15 @@ Return exactly this JSON shape:
   ],
   "to_ask": [
     {"question": "..."}
-  ]
+  ],
+  "suggested_story_tags": ["tag1", "tag2"]
 }
 
 Rules:
 - behavioral: 6–8 questions. Focus on leadership, influencing without authority, navigating ambiguity, cross-functional collaboration, receiving/giving feedback, and measurable impact. Tailor to the seniority implied by the role.
 - design: 4–6 questions. Mix of portfolio walkthrough prompts, design process deep-dives, design critique scenarios, and role-specific challenges (e.g. design systems, research methods, handoff with engineering). Make them specific to this role cluster if possible.
-- to_ask: 5–7 sharp questions the candidate should ask. Make them specific to this company and role — not generic. Show curiosity about team dynamics, design maturity, decision-making, and growth.`,
+- to_ask: 5–7 sharp questions the candidate should ask. Make them specific to this company and role — not generic. Show curiosity about team dynamics, design maturity, decision-making, and growth.
+- suggested_story_tags: 3–5 tags, chosen ONLY from this exact vocabulary: leadership, influence, ambiguity, conflict, impact, collaboration, feedback, failure. Pick the ones a candidate is most likely to be probed on for this specific role's seniority and requirements — this is used to surface matching stories from the candidate's STAR story bank.`,
         },
       ],
     })

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText, Wand2 } from 'lucide-react'
+import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText, Wand2, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
 import TailorResumeModal from '../components/TailorResumeModal.jsx'
 import ContactsSection from '../components/ContactsSection.jsx'
+import { filterRelevantPortfolio } from '../lib/portfolioUtils.js'
 
 function formatSalary(min, max) {
   const fmt = n => n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${n}`
@@ -15,6 +16,26 @@ function formatSalary(min, max) {
 
 const CLUSTERS = ['ux', 'product-design', 'design-engineer', 'design-technologist', 'other']
 const RATINGS = ['yes', 'maybe', 'no']
+
+function FitSkillPills({ skills, type }) {
+  const colors = {
+    present: { bg: 'var(--yes-bg)', text: 'var(--yes)', border: '#bbf7d0' },
+    missing: { bg: 'var(--no-bg)', text: 'var(--no)', border: '#fecaca' },
+    partial: { bg: 'var(--maybe-bg)', text: 'var(--maybe)', border: '#fde68a' },
+  }
+  const c = colors[type]
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      {skills.map(s => (
+        <span key={s} style={{
+          padding: '2px 8px', borderRadius: 100, fontSize: 11,
+          fontFamily: 'DM Mono', background: c.bg, color: c.text,
+          border: `1px solid ${c.border}`,
+        }}>{s}</span>
+      ))}
+    </div>
+  )
+}
 
 function AddListingModal({ onClose, onAdded }) {
   const [mode, setMode] = useState('url') // 'url' | 'paste'
@@ -165,7 +186,7 @@ function AddListingModal({ onClose, onAdded }) {
   )
 }
 
-function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
+function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [], resumeContent = '' }) {
   const [expanded, setExpanded] = useState(false)
   const [rating, setRating] = useState(listing.interest_rating)
   const [cluster, setCluster] = useState(listing.role_cluster || 'other')
@@ -178,6 +199,9 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
   const [tailoring, setTailoring] = useState(listing.resume_tailoring || null)
   const [salaryMin, setSalaryMin] = useState(listing.salary_min ?? '')
   const [salaryMax, setSalaryMax] = useState(listing.salary_max ?? '')
+  const [fitCheck, setFitCheck] = useState(listing.fit_check?.summary ? listing.fit_check : null)
+  const [checkingFit, setCheckingFit] = useState(false)
+  const [fitError, setFitError] = useState('')
 
   async function save(updates) {
     setSaving(true)
@@ -201,6 +225,45 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
     }).eq('id', listing.id)
     setApplying(false)
     onUpdate()
+  }
+
+  async function checkFit() {
+    setCheckingFit(true)
+    setFitError('')
+    try {
+      const res = await fetch('/api/listing-fit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listing: {
+            title: listing.title,
+            company: listing.company,
+            seniority_level: listing.seniority_level,
+            parsed_skills: listing.parsed_skills,
+            parsed_requirements: listing.parsed_requirements,
+            parsed_nice_to_haves: listing.parsed_nice_to_haves,
+          },
+          resume: resumeContent,
+          portfolio: portfolioPieces.map(p => ({
+            title: p.title,
+            type: p.type,
+            role_clusters: p.role_clusters,
+            skills: p.skills,
+            description: p.description,
+            mdx_content: p.mdx_content,
+          })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Fit check failed')
+      const withMeta = { ...data, generated_at: new Date().toISOString() }
+      await save({ fit_check: withMeta })
+      setFitCheck(withMeta)
+    } catch (e) {
+      setFitError(e.message)
+    } finally {
+      setCheckingFit(false)
+    }
   }
 
   return (
@@ -321,6 +384,68 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
               </ul>
             </div>
           )}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <label className="label" style={{ marginBottom: 0 }}>Fit check</label>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: 11, gap: 5, padding: '4px 8px' }}
+                onClick={checkFit}
+                disabled={checkingFit || !resumeContent}
+                title={!resumeContent ? 'Save a resume on the Resume page first' : ''}
+              >
+                <Sparkles size={11} />
+                {checkingFit ? 'Checking…' : fitCheck ? 'Re-check' : 'Check fit'}
+              </button>
+            </div>
+            {fitError && (
+              <p style={{ fontSize: 12, color: 'var(--no)', marginBottom: 8 }}>{fitError}</p>
+            )}
+            {fitCheck ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {fitCheck.summary && (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{fitCheck.summary}</p>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  {[
+                    { label: 'You have', type: 'present', data: fitCheck.skills_present },
+                    { label: 'Partial', type: 'partial', data: fitCheck.skills_partial },
+                    { label: 'Gaps', type: 'missing', data: fitCheck.skills_missing },
+                  ].map(({ label, type, data }) => (
+                    <div key={type}>
+                      <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: 6 }}>
+                        {label}
+                      </p>
+                      {data?.length > 0
+                        ? <FitSkillPills skills={data} type={type} />
+                        : <p style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>None</p>
+                      }
+                    </div>
+                  ))}
+                </div>
+                {fitCheck.skills_from_portfolio?.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: 6 }}>
+                      In your portfolio, not your resume
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {fitCheck.skills_from_portfolio.map((item, i) => (
+                        <p key={i} style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          <span className="skill-pill" style={{ fontSize: 10, marginRight: 6 }}>{item.skill}</span>
+                          · from {item.portfolio_piece}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                {resumeContent ? 'Check how your resume and portfolio stack up against this specific listing.' : 'Save a resume on the Resume page first.'}
+              </p>
+            )}
+          </div>
+
           <div>
             <label className="label">Compensation (annual base, USD)</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -451,9 +576,7 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
 
           {/* Relevant portfolio */}
           {(() => {
-            const relevant = portfolioPieces.filter(p =>
-              !listing.role_cluster || !p.role_clusters?.length || p.role_clusters.includes(listing.role_cluster)
-            )
+            const relevant = filterRelevantPortfolio(portfolioPieces, listing.role_cluster)
             if (!relevant.length) return null
             return (
               <div>
@@ -507,6 +630,7 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [] }) {
 export default function ListingsPage() {
   const [listings, setListings] = useState([])
   const [portfolioPieces, setPortfolioPieces] = useState([])
+  const [resumeContent, setResumeContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState('all')
@@ -515,12 +639,14 @@ export default function ListingsPage() {
   const [search, setSearch] = useState('')
 
   async function load() {
-    const [{ data: listingData }, { data: pieceData }] = await Promise.all([
+    const [{ data: listingData }, { data: pieceData }, { data: resumeData }] = await Promise.all([
       supabase.from('job_listings').select('*').eq('is_archived', false).is('application_status', null).order('created_at', { ascending: false }),
       supabase.from('portfolio_pieces').select('*').order('created_at', { ascending: false }),
+      supabase.from('resume_versions').select('content').eq('is_active', true).maybeSingle(),
     ])
     setListings(listingData || [])
     setPortfolioPieces(pieceData || [])
+    setResumeContent(resumeData?.content || '')
     setLoading(false)
   }
 
@@ -649,7 +775,7 @@ export default function ListingsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(l => (
-            <ListingCard key={l.id} listing={l} onUpdate={load} onDelete={handleDelete} portfolioPieces={portfolioPieces} />
+            <ListingCard key={l.id} listing={l} onUpdate={load} onDelete={handleDelete} portfolioPieces={portfolioPieces} resumeContent={resumeContent} />
           ))}
         </div>
       )}

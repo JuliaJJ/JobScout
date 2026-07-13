@@ -10,10 +10,16 @@ const SYSTEM_PROMPT = `You are a career writing coach specializing in UX and pro
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { resume, listing } = req.body
+  const { resume, listing, portfolio } = req.body
   if (!resume || !listing) {
     return res.status(400).json({ error: 'Resume and listing required' })
   }
+
+  const portfolioContext = (portfolio || []).map(p => {
+    const skills = (p.skills || []).join(', ')
+    const desc = (p.description || p.mdx_content || '').replace(/\s+/g, ' ').trim().slice(0, 300)
+    return `- "${p.title}" (${p.type || 'Project'})${skills ? ` — skills: ${skills}` : ''}${desc ? `\n  ${desc}` : ''}`
+  }).join('\n')
 
   const listingContext = [
     `Title: ${listing.title || 'Unknown'}`,
@@ -55,7 +61,8 @@ ${resume.slice(0, 4000)}
 JOB LISTING:
 ${listingContext}
 
-Write 3–4 focused paragraphs. Be specific: reference the company by name, connect 2–3 concrete experiences or projects from the resume directly to this role's requirements. Avoid generic opener phrases like "I am excited to apply" or "I believe I would be a strong candidate." Start with a sentence that shows you understand what this role actually needs.`,
+${portfolioContext ? `PORTFOLIO PROJECTS:\n${portfolioContext}\n` : ''}
+Write 3–4 focused paragraphs. Be specific: reference the company by name, connect 2–3 concrete experiences or projects from the resume directly to this role's requirements. If a portfolio project above demonstrates something the resume doesn't make obvious, you may reference that project by name and cite one concrete detail from its description — never invent details beyond what's given. Avoid generic opener phrases like "I am excited to apply" or "I believe I would be a strong candidate." Start with a sentence that shows you understand what this role actually needs.`,
       }],
     })
 

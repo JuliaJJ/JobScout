@@ -151,7 +151,7 @@ function StoryModal({ story, onClose, onSaved }) {
 
 // ─── Story Card ───────────────────────────────────────────────────────────────
 
-function StoryCard({ story, onEdit, onDelete }) {
+function StoryCard({ story, onEdit, onDelete, readOnly = false }) {
   const [expanded, setExpanded] = useState(false)
   const hasContent = story.situation || story.task || story.action || story.result
 
@@ -179,12 +179,16 @@ function StoryCard({ story, onEdit, onDelete }) {
               {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           )}
-          <button className="btn btn-ghost" style={{ padding: '3px 6px' }} onClick={() => onEdit(story)}>
-            <Edit2 size={11} />
-          </button>
-          <button className="btn btn-ghost" style={{ padding: '3px 6px', color: 'var(--no)' }} onClick={() => onDelete(story.id)}>
-            <Trash2 size={11} />
-          </button>
+          {!readOnly && (
+            <>
+              <button className="btn btn-ghost" style={{ padding: '3px 6px' }} onClick={() => onEdit(story)}>
+                <Edit2 size={11} />
+              </button>
+              <button className="btn btn-ghost" style={{ padding: '3px 6px', color: 'var(--no)' }} onClick={() => onDelete(story.id)}>
+                <Trash2 size={11} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -241,7 +245,7 @@ function QuestionRow({ q, expanded, onToggle, onUpdateNotes, onRemove }) {
 
 // ─── Prep Panel ───────────────────────────────────────────────────────────────
 
-function PrepPanel({ prep, generating, onGenerate, onSave }) {
+function PrepPanel({ prep, stories, generating, onGenerate, onSave }) {
   const [companyNotes, setCompanyNotes] = useState(prep.company_notes || '')
   const [questions, setQuestions] = useState(prep.anticipated_questions || [])
   const [toAsk, setToAsk] = useState(prep.questions_to_ask || [])
@@ -288,6 +292,9 @@ function PrepPanel({ prep, generating, onGenerate, onSave }) {
 
   const behavioral = questions.filter(q => q.category === 'behavioral')
   const design = questions.filter(q => q.category === 'design')
+  const suggestedStories = (stories || []).filter(s =>
+    s.behavioral_tags?.some(t => prep.suggested_story_tags?.includes(t))
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 20 }}>
@@ -302,6 +309,21 @@ function PrepPanel({ prep, generating, onGenerate, onSave }) {
           style={{ width: '100%', minHeight: 90, resize: 'vertical' }}
         />
       </div>
+
+      {/* Suggested stories */}
+      {suggestedStories.length > 0 && (
+        <div>
+          <div className="section-header" style={{ margin: 0, marginBottom: 4 }}>Suggested stories for this role</div>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            From your Story Bank — tagged {prep.suggested_story_tags.join(', ')}.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+            {suggestedStories.map(story => (
+              <StoryCard key={story.id} story={story} readOnly />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Anticipated questions */}
       <div>
@@ -441,7 +463,7 @@ export default function InterviewPage() {
       .select('*')
       .eq('listing_id', listingId)
       .maybeSingle()
-    setPrep(data || { listing_id: listingId, company_notes: '', anticipated_questions: [], questions_to_ask: [] })
+    setPrep(data || { listing_id: listingId, company_notes: '', anticipated_questions: [], questions_to_ask: [], suggested_story_tags: [] })
   }
 
   async function savePrep(updates) {
@@ -487,7 +509,11 @@ export default function InterviewPage() {
       ]
       const toAsk = (data.to_ask || []).map(q => ({ id: crypto.randomUUID(), question: q.question }))
 
-      await savePrep({ anticipated_questions: anticipated, questions_to_ask: toAsk })
+      await savePrep({
+        anticipated_questions: anticipated,
+        questions_to_ask: toAsk,
+        suggested_story_tags: data.suggested_story_tags || [],
+      })
     } catch (e) {
       console.error('Interview question generation failed:', e)
     } finally {
@@ -545,6 +571,7 @@ export default function InterviewPage() {
           <PrepPanel
             key={selectedId}
             prep={prep}
+            stories={stories}
             generating={generating}
             onGenerate={generateQuestions}
             onSave={savePrep}

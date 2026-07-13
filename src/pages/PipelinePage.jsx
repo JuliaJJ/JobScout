@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { ExternalLink, Archive, FileText, Users, Briefcase, RotateCcw, ArrowLeft, Scale } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
 import ContactsModal from '../components/ContactsModal.jsx'
 import RelevantPiecesModal from '../components/RelevantPiecesModal.jsx'
+import { benchmarkSalary } from '../lib/salaryUtils.js'
 
 const COLUMNS = [
   { status: 'applied',      label: 'Applied',      color: 'var(--text-primary)' },
@@ -12,6 +13,21 @@ const COLUMNS = [
   { status: 'offer',        label: 'Offer',        color: '#7c3aed' },
   { status: 'closed',       label: 'Closed',       color: 'var(--text-tertiary)', muted: true },
 ]
+
+const FOLLOWUP_THRESHOLD_DAYS = 14
+const ACTIVE_STATUSES = ['applied', 'screening', 'interviewing']
+
+function daysSinceActivity(listing) {
+  const dates = [listing.applied_at, listing.created_at, ...(listing.contacts || []).map(c => c.date)]
+    .filter(Boolean)
+    .map(d => new Date(d).getTime())
+  const latest = Math.max(...dates)
+  return Math.floor((Date.now() - latest) / 86400000)
+}
+
+function needsFollowup(listing) {
+  return ACTIVE_STATUSES.includes(listing.application_status) && daysSinceActivity(listing) >= FOLLOWUP_THRESHOLD_DAYS
+}
 
 const OFFER_ROWS = [
   { key: 'base_salary',   label: 'Base Salary', type: 'salary',  placeholder: '180000' },
@@ -124,12 +140,22 @@ function KanbanCard({ listing, onDragStart, onArchive, onMoveBack, onCoverLetter
           )}
         </div>
       )}
-      <p style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--text-tertiary)', marginTop: 8 }}>
-        {listing.applied_at
-          ? `Applied ${new Date(listing.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-          : `Saved ${new Date(listing.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-        }
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <p style={{ fontSize: 10, fontFamily: 'DM Mono', color: 'var(--text-tertiary)' }}>
+          {listing.applied_at
+            ? `Applied ${new Date(listing.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+            : `Saved ${new Date(listing.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          }
+        </p>
+        {needsFollowup(listing) && (
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 100,
+            background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a',
+          }}>
+            ⏰ Follow up
+          </span>
+        )}
+      </div>
     </div>
   )
 }
@@ -275,7 +301,11 @@ function OfferCell({ value, onSave, placeholder, multiline, type }) {
     : <input {...shared} />
 }
 
-function OffersView({ offerListings, offerDetails, onSaveField, onBack }) {
+function fmtK(n) {
+  return `$${Math.round(n / 1000)}k`
+}
+
+function OffersView({ offerListings, offerDetails, marketListings, onSaveField, onBack }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
@@ -319,41 +349,67 @@ function OffersView({ offerListings, offerDetails, onSaveField, onBack }) {
           </thead>
           <tbody>
             {OFFER_ROWS.map((row, i) => (
-              <tr
-                key={row.key}
-                style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg)' }}
-              >
-                <td style={{
-                  padding: '12px 14px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  verticalAlign: 'top',
-                  whiteSpace: 'nowrap',
-                  borderRight: '1px solid var(--border)',
-                }}>
-                  {row.label}
-                </td>
-                {offerListings.map(l => {
-                  const details = offerDetails[l.id] || {}
-                  const val = details[row.key] ?? null
-                  return (
-                    <td key={l.id} style={{ padding: '10px 16px', verticalAlign: 'top' }}>
-                      {row.type === 'stars' ? (
-                        <StarRating value={val} onChange={v => onSaveField(l.id, row.key, v)} />
-                      ) : (
-                        <OfferCell
-                          value={val}
-                          onSave={v => onSaveField(l.id, row.key, v)}
-                          placeholder={row.placeholder}
-                          multiline={row.multiline}
-                          type={row.type}
-                        />
-                      )}
+              <Fragment key={row.key}>
+                <tr style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg)' }}>
+                  <td style={{
+                    padding: '12px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    verticalAlign: 'top',
+                    whiteSpace: 'nowrap',
+                    borderRight: '1px solid var(--border)',
+                  }}>
+                    {row.label}
+                  </td>
+                  {offerListings.map(l => {
+                    const details = offerDetails[l.id] || {}
+                    const val = details[row.key] ?? null
+                    return (
+                      <td key={l.id} style={{ padding: '10px 16px', verticalAlign: 'top' }}>
+                        {row.type === 'stars' ? (
+                          <StarRating value={val} onChange={v => onSaveField(l.id, row.key, v)} />
+                        ) : (
+                          <OfferCell
+                            value={val}
+                            onSave={v => onSaveField(l.id, row.key, v)}
+                            placeholder={row.placeholder}
+                            multiline={row.multiline}
+                            type={row.type}
+                          />
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+                {row.key === 'base_salary' && (
+                  <tr style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg)' }}>
+                    <td style={{
+                      padding: '0 14px 12px',
+                      fontSize: 11,
+                      color: 'var(--text-tertiary)',
+                      verticalAlign: 'top',
+                      whiteSpace: 'nowrap',
+                      borderRight: '1px solid var(--border)',
+                    }}>
+                      Market range
                     </td>
-                  )
-                })}
-              </tr>
+                    {offerListings.map(l => {
+                      const benchmark = benchmarkSalary(marketListings, l)
+                      return (
+                        <td key={l.id} style={{ padding: '0 16px 12px', verticalAlign: 'top' }}>
+                          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'DM Mono' }}>
+                            {benchmark
+                              ? `${fmtK(benchmark.min)}–${fmtK(benchmark.max)} · median ${fmtK(benchmark.median)} (n=${benchmark.n})`
+                              : 'Not enough market data yet'
+                            }
+                          </p>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -366,6 +422,7 @@ function OffersView({ offerListings, offerDetails, onSaveField, onBack }) {
 
 export default function PipelinePage() {
   const [listings, setListings] = useState([])
+  const [marketListings, setMarketListings] = useState([])
   const [offerDetails, setOfferDetails] = useState({})
   const [view, setView] = useState('kanban')
   const [loading, setLoading] = useState(true)
@@ -375,7 +432,7 @@ export default function PipelinePage() {
   const [portfolioListing, setPortfolioListing] = useState(null)
 
   async function load() {
-    const [{ data: listingsData }, { data: detailsData }] = await Promise.all([
+    const [{ data: listingsData }, { data: detailsData }, { data: marketData }] = await Promise.all([
       supabase
         .from('job_listings')
         .select('*')
@@ -383,8 +440,14 @@ export default function PipelinePage() {
         .not('application_status', 'is', null)
         .order('created_at', { ascending: false }),
       supabase.from('offer_details').select('*'),
+      supabase
+        .from('job_listings')
+        .select('role_cluster, seniority_level, salary_min, salary_max')
+        .eq('is_archived', false)
+        .neq('interest_rating', 'no'),
     ])
     setListings(listingsData || [])
+    setMarketListings(marketData || [])
     const map = {}
     for (const d of detailsData || []) map[d.listing_id] = d
     setOfferDetails(map)
@@ -443,6 +506,7 @@ export default function PipelinePage() {
   const active = listings.filter(l => l.application_status !== 'closed').length
   const offerListings = byStatus('offer')
   const canCompare = offerListings.length >= 2
+  const followupCount = listings.filter(needsFollowup).length
 
   return (
     <div>
@@ -451,6 +515,11 @@ export default function PipelinePage() {
           <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Pipeline</h1>
           <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
             {active} active application{active !== 1 ? 's' : ''} · drag cards between columns to update status
+            {followupCount > 0 && (
+              <span style={{ color: '#d97706', fontWeight: 600, marginLeft: 6 }}>
+                · {followupCount} need follow-up
+              </span>
+            )}
           </p>
         </div>
         {canCompare && view === 'kanban' && (
@@ -473,6 +542,7 @@ export default function PipelinePage() {
         <OffersView
           offerListings={offerListings}
           offerDetails={offerDetails}
+          marketListings={marketListings}
           onSaveField={saveOfferField}
           onBack={() => setView('kanban')}
         />

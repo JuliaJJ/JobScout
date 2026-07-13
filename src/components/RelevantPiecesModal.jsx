@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { Link } from 'react-router-dom'
+import { filterRelevantPortfolio } from '../lib/portfolioUtils.js'
 
 const CLUSTER_COLORS = {
   'ux': '#dbeafe',
@@ -20,13 +21,7 @@ export default function RelevantPiecesModal({ listing, onClose }) {
         .from('portfolio_pieces')
         .select('*')
         .order('created_at', { ascending: false })
-      const cluster = listing.role_cluster
-      // Only show pieces explicitly tagged to the listing's cluster.
-      // If the listing has no cluster assigned, show everything.
-      const relevant = (data || []).filter(p =>
-        !cluster || p.role_clusters?.includes(cluster)
-      )
-      setPieces(relevant)
+      setPieces(filterRelevantPortfolio(data, listing.role_cluster))
       setLoading(false)
     }
     load()

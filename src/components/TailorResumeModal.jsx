@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { X, RefreshCw, Check, Copy, Save } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
+import { filterRelevantPortfolio } from '../lib/portfolioUtils.js'
 
 export default function TailorResumeModal({ listing, onClose, onSaved }) {
   const [resume, setResume] = useState(null)
+  const [portfolio, setPortfolio] = useState([])
   const [resumeMissing, setResumeMissing] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -17,13 +19,13 @@ export default function TailorResumeModal({ listing, onClose, onSaved }) {
 
   useEffect(() => {
     async function fetchResume() {
-      const { data } = await supabase
-        .from('resume_versions')
-        .select('content')
-        .eq('is_active', true)
-        .single()
+      const [{ data }, { data: pieces }] = await Promise.all([
+        supabase.from('resume_versions').select('content').eq('is_active', true).single(),
+        supabase.from('portfolio_pieces').select('*'),
+      ])
       if (data?.content) setResume(data.content)
       else setResumeMissing(true)
+      setPortfolio(filterRelevantPortfolio(pieces, listing.role_cluster))
     }
     fetchResume()
   }, [])
@@ -36,7 +38,11 @@ export default function TailorResumeModal({ listing, onClose, onSaved }) {
       const res = await fetch('/api/tailor-resume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listing, resume }),
+        body: JSON.stringify({
+          listing,
+          resume,
+          portfolio: portfolio.map(p => ({ title: p.title, type: p.type, skills: p.skills, description: p.description, mdx_content: p.mdx_content })),
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')
@@ -135,8 +141,12 @@ export default function TailorResumeModal({ listing, onClose, onSaved }) {
                       >
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: 3 }}>Before</p>
-                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{b.original}</p>
+                            <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)', marginBottom: 3 }}>
+                              {b.original ? 'Before' : 'New'}
+                            </p>
+                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, fontStyle: b.original ? 'normal' : 'italic' }}>
+                              {b.original || `From portfolio project "${b.portfolio_piece}"`}
+                            </p>
                           </div>
                           <div style={{
                             width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 14,
