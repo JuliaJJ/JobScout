@@ -63,7 +63,7 @@ function SkillsGrid({ skills, type }) {
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
       {skills.map(s => (
         <span key={s} style={{
-          padding: '3px 10px', borderRadius: 100, fontSize: 12,
+          padding: '3px 10px', borderRadius: 6, fontSize: 12,
           fontFamily: 'DM Mono', background: c.bg, color: c.text,
           border: `1px solid ${c.border}`,
         }}>{s}</span>
