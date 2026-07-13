@@ -10,7 +10,7 @@ const SYSTEM_PROMPT = `You are a senior UX/product design career coach. You give
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { resume, listings } = req.body
+  const { resume, listings, portfolio } = req.body
   if (!resume || !listings?.length) {
     return res.status(400).json({ error: 'Resume and listings required' })
   }
@@ -44,10 +44,17 @@ export default async function handler(req, res) {
   const clusterSummary = Object.entries(clusterCounts).map(([k, v]) => `${k}: ${v}`).join(', ')
   const senioritySummary = Object.entries(seniorityCounts).map(([k, v]) => `${k}: ${v}`).join(', ')
 
+  const portfolioContext = (portfolio || []).map(p => {
+    const skills = (p.skills || []).join(', ')
+    const desc = (p.description || p.mdx_content || '').replace(/\s+/g, ' ').trim().slice(0, 300)
+    const tags = [p.type, ...(p.role_clusters || [])].filter(Boolean).join(', ')
+    return `- "${p.title}"${tags ? ` (${tags})` : ''}${skills ? ` — tagged skills: ${skills}` : ''}${desc ? `\n  ${desc}` : ''}`
+  }).join('\n')
+
   try {
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2500,
+      max_tokens: 3200,
       system: [
         {
           type: 'text',
@@ -69,12 +76,28 @@ Nice-to-haves: ${topNiceToHaves}
 Role mix: ${clusterSummary || 'n/a'}
 Seniority mix: ${senioritySummary || 'n/a'}
 
+${portfolioContext ? `PORTFOLIO PROJECTS:\n${portfolioContext}\n` : 'PORTFOLIO PROJECTS: none provided.\n'}
+For each frequently-requested market skill, classify it into exactly ONE bucket:
+- skills_present: clearly and explicitly demonstrated in the resume text
+- skills_partial: implied or partially demonstrated in the resume but not clearly articulated
+- skills_from_portfolio: NOT clearly present in the resume text, but demonstrated by one of the portfolio projects above (via its tagged skills or description) — these are resume WORDING fixes, not skill gaps, since the candidate already has the experience
+- skills_missing: genuinely absent from both the resume AND the portfolio — real gaps that call for new experience or development, not just better phrasing
+
+If no portfolio projects were provided, skills_from_portfolio must be an empty array.
+
 Return ONLY a JSON object with this exact structure:
 {
   "summary": "1-2 paragraph honest assessment of positioning, strengths, and main gaps",
   "skills_present": ["skills clearly evident in resume that are highly sought"],
   "skills_partial": ["skills implied or partially demonstrated but not clearly articulated"],
-  "skills_missing": ["skills frequently requested that are absent from resume"],
+  "skills_from_portfolio": [
+    {
+      "skill": "the skill",
+      "portfolio_piece": "exact title of the portfolio project that demonstrates it",
+      "resume_suggestion": "a specific resume bullet drawing only on what that project's description says — never invent details"
+    }
+  ],
+  "skills_missing": ["skills frequently requested that are genuinely absent from resume and portfolio"],
   "action_plan": [
     {
       "action": "short action title",
@@ -86,7 +109,7 @@ Return ONLY a JSON object with this exact structure:
   ]
 }
 
-Order action_plan by impact. Include 5-7 action items. Be specific to a senior/staff UX designer with technical skills (React, JS, Swift, HTML/CSS).`
+Do not repeat skills_from_portfolio items in the action_plan — those already have their own resume_suggestion. Keep action_plan focused on skills_missing, skills_partial, and broader positioning/application strategy. Order action_plan by impact. Include 5-7 action items. Be specific to a senior/staff UX designer with technical skills (React, JS, Swift, HTML/CSS).`
       }],
     })
 

@@ -258,11 +258,100 @@ function WorkshopCard({ skill, type, roles, structuredData, resumeId, onBulletAd
   )
 }
 
+// ── Portfolio → Resume ──────────────────────────────────────────────────────────
+
+function PortfolioGapCard({ item, roles, structuredData, resumeId, onBulletAdded }) {
+  const [bullet, setBullet] = useState(item.resume_suggestion || '')
+  const [expId, setExpId] = useState(roles[0]?.id || '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (!expId && roles[0]?.id) setExpId(roles[0].id)
+  }, [roles])
+
+  async function addToResume() {
+    if (!bullet.trim() || !expId || !structuredData) return
+    setSaving(true)
+    try {
+      const updated = {
+        ...structuredData,
+        experience: structuredData.experience.map(e =>
+          e.id === expId
+            ? { ...e, bullets: [...(e.bullets || []).filter(Boolean), bullet.trim()] }
+            : e
+        ),
+      }
+      const content = serialize(updated)
+      await supabase
+        .from('resume_versions')
+        .update({ structured_data: updated, content })
+        .eq('id', resumeId)
+      setSaved(true)
+      onBulletAdded(updated)
+    } catch (e) {
+      alert('Failed to save: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 500, fontSize: 14 }}>{item.skill}</span>
+        {item.portfolio_piece && (
+          <span style={{
+            fontSize: 11, fontFamily: 'DM Mono', padding: '2px 8px', borderRadius: 100,
+            background: 'var(--yes-bg)', color: 'var(--yes)', border: '1px solid #bbf7d0',
+          }}>
+            from {item.portfolio_piece}
+          </span>
+        )}
+      </div>
+      <textarea
+        className="input"
+        style={{ width: '100%', fontSize: 13, lineHeight: 1.6, minHeight: 56, resize: 'vertical' }}
+        value={bullet}
+        onChange={e => { setBullet(e.target.value); setSaved(false) }}
+      />
+      {roles.length > 0 ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Add to</span>
+          <select
+            className="input"
+            style={{ flex: 1, fontSize: 13 }}
+            value={expId}
+            onChange={e => setExpId(e.target.value)}
+          >
+            {roles.map(r => (
+              <option key={r.id} value={r.id}>{r.title} at {r.company}</option>
+            ))}
+          </select>
+          <button
+            className="btn btn-primary"
+            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+            onClick={addToResume}
+            disabled={saving || !bullet.trim()}
+          >
+            {saving ? 'Saving…' : saved ? '✓ Added' : 'Add to resume'}
+          </button>
+        </div>
+      ) : (
+        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>
+          Add experience entries on the Resume page to save bullets directly.
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
   const [resume, setResume] = useState(null)
   const [listings, setListings] = useState([])
+  const [portfolio, setPortfolio] = useState([])
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(false)
   const [pastAnalyses, setPastAnalyses] = useState([])
@@ -270,14 +359,16 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: rv }, { data: jl }, { data: ga }] = await Promise.all([
+      const [{ data: rv }, { data: jl }, { data: pp }, { data: ga }] = await Promise.all([
         supabase.from('resume_versions').select('*').eq('is_active', true).single(),
         supabase.from('job_listings').select('*').eq('is_archived', false).neq('interest_rating', 'no'),
+        supabase.from('portfolio_pieces').select('*'),
         supabase.from('gap_analyses').select('*').order('created_at', { ascending: false }).limit(5),
       ])
       setResume(rv)
       if (rv?.structured_data) setLiveStructured(rv.structured_data)
       setListings(jl || [])
+      setPortfolio(pp || [])
       setPastAnalyses(ga || [])
     }
     load()
@@ -302,7 +393,15 @@ export default function AnalysisPage() {
             seniority_level: l.seniority_level,
             role_cluster: l.role_cluster,
             interest_rating: l.interest_rating,
-          }))
+          })),
+          portfolio: portfolio.map(p => ({
+            title: p.title,
+            type: p.type,
+            role_clusters: p.role_clusters,
+            skills: p.skills,
+            description: p.description,
+            mdx_content: p.mdx_content,
+          })),
         }),
       })
 
@@ -321,6 +420,7 @@ export default function AnalysisPage() {
         skills_present: data.skills_present || [],
         skills_missing: data.skills_missing || [],
         skills_partial: data.skills_partial || [],
+        skills_from_portfolio: data.skills_from_portfolio || [],
         action_plan: data.action_plan || [],
       }).select().single()
 
@@ -359,6 +459,7 @@ export default function AnalysisPage() {
             {listings.filter(l => l.application_status).length > 0 &&
               ` + ${listings.filter(l => l.application_status).length} pipeline`
             } listings included
+            {portfolio.length > 0 && ` · ${portfolio.length} portfolio pieces included`}
           </p>
         </div>
         <button
@@ -431,6 +532,28 @@ export default function AnalysisPage() {
               </div>
             ))}
           </div>
+
+          {/* Portfolio → Resume */}
+          {current.skills_from_portfolio?.length > 0 && (
+            <div>
+              <p className="section-header" style={{ marginBottom: 4 }}>In your portfolio, not your resume</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
+                Your case studies demonstrate these market-desired skills, but the wording isn't showing up on your resume yet.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {current.skills_from_portfolio.map((item, i) => (
+                  <PortfolioGapCard
+                    key={i}
+                    item={item}
+                    roles={liveStructured?.experience || []}
+                    structuredData={liveStructured}
+                    resumeId={resume?.id}
+                    onBulletAdded={updated => setLiveStructured(updated)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Action plan */}
           {current.action_plan?.length > 0 && (

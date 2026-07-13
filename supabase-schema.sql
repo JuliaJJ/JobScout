@@ -48,8 +48,12 @@ create table gap_analyses (
   skills_present jsonb default '[]',
   skills_missing jsonb default '[]',
   skills_partial jsonb default '[]',
+  skills_from_portfolio jsonb default '[]', -- array of { skill, portfolio_piece, resume_suggestion }
   action_plan jsonb default '[]'
 );
+
+-- Migration: add skills_from_portfolio to existing gap_analyses tables
+-- alter table gap_analyses add column if not exists skills_from_portfolio jsonb default '[]';
 
 -- Skills aggregation view
 create or replace view skills_aggregate as
