@@ -1,8 +1,7 @@
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { Layers, FileText, BarChart2, Zap, Layout, TrendingUp, Briefcase, MessageSquare } from 'lucide-react'
+import { Layers, FileText, Zap, Layout, TrendingUp, Briefcase, MessageSquare } from 'lucide-react'
 import ListingsPage from './pages/ListingsPage.jsx'
 import ResumePage from './pages/ResumePage.jsx'
-import SkillsPage from './pages/SkillsPage.jsx'
 import AnalysisPage from './pages/AnalysisPage.jsx'
 import PipelinePage from './pages/PipelinePage.jsx'
 import ActivityPage from './pages/ActivityPage.jsx'
@@ -14,9 +13,8 @@ const nav = [
   { to: '/pipeline', label: 'Pipeline', icon: Layout },
   { to: '/interview', label: 'Prep', icon: MessageSquare },
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
-  { to: '/activity', label: 'Activity', icon: TrendingUp },
-  { to: '/skills', label: 'Skills', icon: BarChart2 },
   { to: '/resume', label: 'Resume', icon: FileText },
+  { to: '/activity', label: 'Activity', icon: TrendingUp },
   { to: '/analysis', label: 'Gap Analysis', icon: Zap },
 ]
 
@@ -77,7 +75,6 @@ export default function App() {
       <main style={{ flex: 1, maxWidth: 1100, margin: '0 auto', width: '100%', padding: '32px 24px' }}>
         <Routes>
           <Route path="/" element={<ListingsPage />} />
-          <Route path="/skills" element={<SkillsPage />} />
           <Route path="/resume" element={<ResumePage />} />
           <Route path="/pipeline" element={<PipelinePage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText, Wand2, Sparkles } from 'lucide-react'
+import { Plus, ExternalLink, Trash2, ChevronDown, ChevronUp, Link, AlignLeft, Send, FileText, Wand2, Sparkles, BarChart2, Layers } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
 import TailorResumeModal from '../components/TailorResumeModal.jsx'
 import ContactsSection from '../components/ContactsSection.jsx'
+import SkillsView from '../components/SkillsView.jsx'
 import { filterRelevantPortfolio } from '../lib/portfolioUtils.js'
 
 function formatSalary(min, max) {
@@ -633,6 +634,7 @@ export default function ListingsPage() {
   const [resumeContent, setResumeContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [view, setView] = useState('listings') // 'listings' | 'skills'
   const [filter, setFilter] = useState('all')
   const [sort, setSort] = useState('newest')
   const [salaryOnly, setSalaryOnly] = useState(false)
@@ -696,92 +698,125 @@ export default function ListingsPage() {
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Job Listings</h1>
           <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
-            {listings.length} saved · signal your interest to train the gap analysis
+            {view === 'listings'
+              ? <>{listings.length} saved · signal your interest to train the gap analysis</>
+              : <>What the market is asking for, aggregated across your listings</>}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            className="input"
-            style={{ width: 220, padding: '6px 10px', fontSize: 13 }}
-            placeholder="Search title, company, skills…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-            <Plus size={14} /> Add listing
-          </button>
+          <div style={{
+            display: 'flex', gap: 2, background: 'var(--bg)',
+            borderRadius: 8, padding: 3, border: '1px solid var(--border)',
+          }}>
+            {[['listings', 'Listings', Layers], ['skills', 'Skills', BarChart2]].map(([v, label, Icon]) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+                  cursor: 'pointer', border: 'none', transition: 'all 0.12s',
+                  background: view === v ? 'white' : 'transparent',
+                  color: view === v ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                <Icon size={13} /> {label}
+              </button>
+            ))}
+          </div>
+          {view === 'listings' && (
+            <>
+              <input
+                className="input"
+                style={{ width: 220, padding: '6px 10px', fontSize: 13 }}
+                placeholder="Search title, company, skills…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+              <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                <Plus size={14} /> Add listing
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Filter / sort bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {['all', 'yes', 'maybe', 'no'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className="btn btn-ghost"
-              style={{
-                color: filter === f ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                fontWeight: filter === f ? 600 : 400,
-                padding: '4px 10px',
-              }}
-            >
-              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-              <span style={{ marginLeft: 4, fontSize: 11, fontFamily: 'DM Mono', color: 'var(--text-tertiary)' }}>
-                {counts[f]}
-              </span>
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button
-            className="btn btn-ghost"
-            style={{
-              fontSize: 11, padding: '4px 8px', fontFamily: 'DM Mono',
-              color: salaryOnly ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontWeight: salaryOnly ? 600 : 400,
-            }}
-            onClick={() => setSalaryOnly(s => !s)}
-          >
-            $ has salary
-          </button>
-          <select
-            value={sort}
-            onChange={e => setSort(e.target.value)}
-            style={{
-              border: '1px solid var(--border)', borderRadius: 6,
-              padding: '4px 8px', fontSize: 12, background: 'white',
-              color: 'var(--text-secondary)', cursor: 'pointer',
-            }}
-          >
-            <option value="newest">Newest first</option>
-            <option value="salary-desc">Salary: high → low</option>
-            <option value="salary-asc">Salary: low → high</option>
-          </select>
-        </div>
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-tertiary)' }}>
-          <span className="spinner" style={{ margin: '0 auto' }} />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-tertiary)' }}>
-          {listings.length === 0
-            ? 'No listings yet. Add your first job posting to get started.'
-            : `No ${filter} listings.`}
-        </div>
+      {view === 'skills' ? (
+        <SkillsView />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(l => (
-            <ListingCard key={l.id} listing={l} onUpdate={load} onDelete={handleDelete} portfolioPieces={portfolioPieces} resumeContent={resumeContent} />
-          ))}
-        </div>
-      )}
+        <>
+          {/* Filter / sort bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {['all', 'yes', 'maybe', 'no'].map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className="btn btn-ghost"
+                  style={{
+                    color: filter === f ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                    fontWeight: filter === f ? 600 : 400,
+                    padding: '4px 10px',
+                  }}
+                >
+                  {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                  <span style={{ marginLeft: 4, fontSize: 11, fontFamily: 'DM Mono', color: 'var(--text-tertiary)' }}>
+                    {counts[f]}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                className="btn btn-ghost"
+                style={{
+                  fontSize: 11, padding: '4px 8px', fontFamily: 'DM Mono',
+                  color: salaryOnly ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  fontWeight: salaryOnly ? 600 : 400,
+                }}
+                onClick={() => setSalaryOnly(s => !s)}
+              >
+                $ has salary
+              </button>
+              <select
+                value={sort}
+                onChange={e => setSort(e.target.value)}
+                style={{
+                  border: '1px solid var(--border)', borderRadius: 6,
+                  padding: '4px 8px', fontSize: 12, background: 'white',
+                  color: 'var(--text-secondary)', cursor: 'pointer',
+                }}
+              >
+                <option value="newest">Newest first</option>
+                <option value="salary-desc">Salary: high → low</option>
+                <option value="salary-asc">Salary: low → high</option>
+              </select>
+            </div>
+          </div>
 
-      {showModal && (
-        <AddListingModal onClose={() => setShowModal(false)} onAdded={load} />
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-tertiary)' }}>
+              <span className="spinner" style={{ margin: '0 auto' }} />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-tertiary)' }}>
+              {listings.length === 0
+                ? 'No listings yet. Add your first job posting to get started.'
+                : `No ${filter} listings.`}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filtered.map(l => (
+                <ListingCard key={l.id} listing={l} onUpdate={load} onDelete={handleDelete} portfolioPieces={portfolioPieces} resumeContent={resumeContent} />
+              ))}
+            </div>
+          )}
+
+          {showModal && (
+            <AddListingModal onClose={() => setShowModal(false)} onAdded={load} />
+          )}
+        </>
       )}
     </div>
   )

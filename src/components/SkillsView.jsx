@@ -25,7 +25,7 @@ function SkillBar({ skill, count, max, pct }) {
   )
 }
 
-export default function SkillsPage() {
+export default function SkillsView() {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
   const [clusterFilter, setClusterFilter] = useState('all')
@@ -66,12 +66,9 @@ export default function SkillsPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Skills Intelligence</h1>
-        <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
-          Aggregated from {filtered.length} listings · sorted by frequency
-        </p>
-      </div>
+      <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginBottom: 20 }}>
+        Aggregated from {filtered.length} listings · sorted by frequency
+      </p>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
