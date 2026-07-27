@@ -59,11 +59,15 @@ create table gap_analyses (
   skills_missing jsonb default '[]',
   skills_partial jsonb default '[]',
   skills_from_portfolio jsonb default '[]', -- array of { skill, portfolio_piece, resume_suggestion }
-  action_plan jsonb default '[]'
+  action_plan jsonb default '[]',
+  project_suggestions jsonb default '[]' -- array of { title, rationale, skills_targeted, scope, tech_suggestions, interest_tie_in }
 );
 
 -- Migration: add skills_from_portfolio to existing gap_analyses tables
 -- alter table gap_analyses add column if not exists skills_from_portfolio jsonb default '[]';
+
+-- Migration: add project_suggestions to existing gap_analyses tables
+-- alter table gap_analyses add column if not exists project_suggestions jsonb default '[]';
 
 -- Skills aggregation view
 create or replace view skills_aggregate as
@@ -93,6 +97,14 @@ create table portfolio_pieces (
 
 -- Migration: add mdx_content to existing portfolio_pieces tables
 -- alter table portfolio_pieces add column if not exists mdx_content text;
+
+-- Personal interests/hobbies (optional color for project suggestions — a short tagged list, not one big text field)
+create table interests (
+  id uuid primary key default uuid_generate_v4(),
+  created_at timestamptz default now(),
+  label text not null,
+  notes text
+);
 
 -- STAR story bank (reusable behavioral interview stories, not tied to a listing)
 create table interview_stories (
@@ -142,6 +154,7 @@ alter table job_listings disable row level security;
 alter table resume_versions disable row level security;
 alter table gap_analyses disable row level security;
 alter table portfolio_pieces disable row level security;
+alter table interests disable row level security;
 alter table interview_stories disable row level security;
 alter table interview_prep disable row level security;
 alter table offer_details disable row level security;

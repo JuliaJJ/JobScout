@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Zap, RefreshCw, ChevronDown, ChevronUp, PenLine } from 'lucide-react'
+import { Zap, RefreshCw, ChevronDown, ChevronUp, PenLine, LayoutGrid, ListChecks, Hammer, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { serialize } from '../lib/resumeUtils.js'
+import InterestsEditor from '../components/InterestsEditor.jsx'
 
 // ── Existing analysis components ───────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ function SkillsGrid({ skills, type }) {
 // ── Resume Workshop ────────────────────────────────────────────────────────────
 
 function WorkshopCard({ skill, type, roles, structuredData, resumeId, onBulletAdded }) {
+  const [open, setOpen] = useState(false)
   const [description, setDescription] = useState('')
   const [drafting, setDrafting] = useState(false)
   const [drafts, setDrafts] = useState([])
@@ -147,9 +149,12 @@ function WorkshopCard({ skill, type, roles, structuredData, resumeId, onBulletAd
   }
 
   return (
-    <div className="card" style={{ padding: 18 }}>
+    <div className="card" style={{ overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <div
+        style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+        onClick={() => setOpen(!open)}
+      >
         <span style={{ fontWeight: 500, fontSize: 14 }}>{skill}</span>
         <span style={{
           fontSize: 10, fontFamily: 'DM Mono', padding: '2px 8px', borderRadius: 100,
@@ -157,101 +162,112 @@ function WorkshopCard({ skill, type, roles, structuredData, resumeId, onBulletAd
         }}>
           {typeStyle.label}
         </span>
+        {savedTo.length > 0 && (
+          <span style={{ fontSize: 11, color: 'var(--yes)', fontFamily: 'DM Mono' }}>
+            ✓ {savedTo.length} bullet{savedTo.length !== 1 ? 's' : ''} added
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        {open ? <ChevronUp size={14} color="var(--text-tertiary)" /> : <ChevronDown size={14} color="var(--text-tertiary)" />}
       </div>
 
-      {/* Description input */}
-      <label className="label" style={{ marginBottom: 4 }}>Describe your experience with this</label>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-        <textarea
-          className="input"
-          style={{ flex: 1, fontSize: 13, lineHeight: 1.6, minHeight: 64, resize: 'vertical' }}
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder={`How have you worked with ${skill}? Describe a specific project or situation — rough language is fine.`}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generateDrafts()
-          }}
-        />
-        <button
-          className="btn btn-secondary"
-          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-          onClick={generateDrafts}
-          disabled={drafting || !description.trim()}
-        >
-          {drafting
-            ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> Drafting…</>
-            : 'Draft bullets →'
-          }
-        </button>
-      </div>
-      {!drafting && !drafts.length && (
-        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>⌘ Enter to generate</p>
-      )}
-
-      {/* Draft options */}
-      {drafts.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <label className="label" style={{ marginBottom: 6 }}>Pick a bullet</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {drafts.map((b, i) => (
-              <div
-                key={i}
-                onClick={() => setSelected(i)}
-                style={{
-                  padding: '10px 14px', borderRadius: 6,
-                  border: '1px solid',
-                  borderColor: selected === i ? 'var(--accent)' : 'var(--border)',
-                  background: selected === i ? '#fafaf8' : 'white',
-                  cursor: 'pointer', fontSize: 13, lineHeight: 1.6,
-                  color: 'var(--text-secondary)',
-                  transition: 'border-color 0.1s',
-                }}
-              >
-                {b}
-              </div>
-            ))}
+      {open && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '14px 16px 16px' }}>
+          {/* Description input */}
+          <label className="label" style={{ marginBottom: 4 }}>Describe your experience with this</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <textarea
+              className="input"
+              style={{ flex: 1, fontSize: 13, lineHeight: 1.6, minHeight: 64, resize: 'vertical' }}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder={`How have you worked with ${skill}? Describe a specific project or situation — rough language is fine.`}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generateDrafts()
+              }}
+            />
+            <button
+              className="btn btn-secondary"
+              style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+              onClick={generateDrafts}
+              disabled={drafting || !description.trim()}
+            >
+              {drafting
+                ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> Drafting…</>
+                : 'Draft bullets →'
+              }
+            </button>
           </div>
+          {!drafting && !drafts.length && (
+            <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>⌘ Enter to generate</p>
+          )}
 
-          {/* Add-to row */}
-          <div style={{ marginTop: 12 }}>
-            {roles.length > 0 ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Add to</span>
-                <select
-                  className="input"
-                  style={{ flex: 1, fontSize: 13 }}
-                  value={expId}
-                  onChange={e => setExpId(e.target.value)}
-                >
-                  {roles.map(r => (
-                    <option key={r.id} value={r.id}>{r.title} at {r.company}</option>
-                  ))}
-                </select>
-                <button
-                  className="btn btn-primary"
-                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                  onClick={addToResume}
-                  disabled={saving || selected === null}
-                >
-                  {saving ? 'Saving…' : 'Add to resume'}
-                </button>
-              </div>
-            ) : (
-              <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                Add experience entries on the Resume page to save bullets directly.
-              </p>
-            )}
-
-            {savedTo.length > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {savedTo.map((name, i) => (
-                  <p key={i} style={{ fontSize: 12, color: 'var(--yes)', fontFamily: 'DM Mono' }}>
-                    ✓ Added to {name}
-                  </p>
+          {/* Draft options */}
+          {drafts.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <label className="label" style={{ marginBottom: 6 }}>Pick a bullet</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {drafts.map((b, i) => (
+                  <div
+                    key={i}
+                    onClick={() => setSelected(i)}
+                    style={{
+                      padding: '10px 14px', borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: selected === i ? 'var(--accent)' : 'var(--border)',
+                      background: selected === i ? '#fafaf8' : 'white',
+                      cursor: 'pointer', fontSize: 13, lineHeight: 1.6,
+                      color: 'var(--text-secondary)',
+                      transition: 'border-color 0.1s',
+                    }}
+                  >
+                    {b}
+                  </div>
                 ))}
               </div>
-            )}
-          </div>
+
+              {/* Add-to row */}
+              <div style={{ marginTop: 12 }}>
+                {roles.length > 0 ? (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Add to</span>
+                    <select
+                      className="input"
+                      style={{ flex: 1, fontSize: 13 }}
+                      value={expId}
+                      onChange={e => setExpId(e.target.value)}
+                    >
+                      {roles.map(r => (
+                        <option key={r.id} value={r.id}>{r.title} at {r.company}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-primary"
+                      style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                      onClick={addToResume}
+                      disabled={saving || selected === null}
+                    >
+                      {saving ? 'Saving…' : 'Add to resume'}
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                    Add experience entries on the Resume page to save bullets directly.
+                  </p>
+                )}
+
+                {savedTo.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {savedTo.map((name, i) => (
+                      <p key={i} style={{ fontSize: 12, color: 'var(--yes)', fontFamily: 'DM Mono' }}>
+                        ✓ Added to {name}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -346,6 +362,49 @@ function PortfolioGapCard({ item, roles, structuredData, resumeId, onBulletAdded
   )
 }
 
+// ── Projects to build ────────────────────────────────────────────────────────────
+
+function ProjectSuggestionCard({ suggestion }) {
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{suggestion.title}</span>
+        {suggestion.scope && (
+          <span className="badge badge-neutral" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{suggestion.scope}</span>
+        )}
+      </div>
+      {suggestion.rationale && (
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>
+          {suggestion.rationale}
+        </p>
+      )}
+      {suggestion.skills_targeted?.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+          {suggestion.skills_targeted.map(s => (
+            <span key={s} style={{
+              padding: '2px 8px', borderRadius: 100, fontSize: 11,
+              fontFamily: 'DM Mono', background: 'var(--no-bg)', color: 'var(--no)',
+              border: '1px solid #fecaca',
+            }}>{s}</span>
+          ))}
+        </div>
+      )}
+      {suggestion.tech_suggestions?.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: suggestion.interest_tie_in ? 8 : 0 }}>
+          {suggestion.tech_suggestions.map(t => (
+            <span key={t} className="skill-pill" style={{ fontSize: 10 }}>{t}</span>
+          ))}
+        </div>
+      )}
+      {suggestion.interest_tie_in && (
+        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+          {suggestion.interest_tie_in}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
@@ -356,6 +415,10 @@ export default function AnalysisPage() {
   const [loading, setLoading] = useState(false)
   const [pastAnalyses, setPastAnalyses] = useState([])
   const [liveStructured, setLiveStructured] = useState(null)
+  const [tab, setTab] = useState('overview') // 'overview' | 'next-steps'
+  const [interests, setInterests] = useState([])
+  const [suggestingProjects, setSuggestingProjects] = useState(false)
+  const [projectError, setProjectError] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -425,6 +488,7 @@ export default function AnalysisPage() {
       }).select().single()
 
       setAnalysis(saved)
+      setTab('overview')
     } catch (e) {
       alert(e.message)
     } finally {
@@ -434,6 +498,48 @@ export default function AnalysisPage() {
 
   function loadPast(ga) {
     setAnalysis(ga)
+    setTab('overview')
+  }
+
+  async function suggestProjects() {
+    if (!analysis) return
+    setSuggestingProjects(true)
+    setProjectError('')
+    try {
+      const res = await fetch('/api/project-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skills_missing: analysis.skills_missing || [],
+          skills_partial: analysis.skills_partial || [],
+          portfolio: portfolio.map(p => ({
+            title: p.title,
+            type: p.type,
+            role_clusters: p.role_clusters,
+            skills: p.skills,
+            description: p.description,
+            mdx_content: p.mdx_content,
+          })),
+          interests: interests.map(i => ({ label: i.label, notes: i.notes })),
+        }),
+      })
+
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error('Suggestions timed out — try again.')
+      }
+      if (!res.ok) throw new Error(data.error)
+
+      const suggestions = data.suggestions || []
+      await supabase.from('gap_analyses').update({ project_suggestions: suggestions }).eq('id', analysis.id)
+      setAnalysis(prev => ({ ...prev, project_suggestions: suggestions }))
+    } catch (e) {
+      setProjectError(e.message)
+    } finally {
+      setSuggestingProjects(false)
+    }
   }
 
   const hasData = resume && listings.length > 0
@@ -462,17 +568,45 @@ export default function AnalysisPage() {
             {portfolio.length > 0 && ` · ${portfolio.length} portfolio pieces included`}
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={runAnalysis}
-          disabled={loading || !hasData}
-          title={!hasData ? 'Add a resume and some listings first' : ''}
-        >
-          {loading
-            ? <><span className="spinner" /> Analysing…</>
-            : <><Zap size={13} /> {current ? <><RefreshCw size={12} /> Re-run</> : 'Run analysis'}</>
-          }
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {current && (
+            <div style={{
+              display: 'flex', gap: 2, background: 'var(--bg)',
+              borderRadius: 8, padding: 3, border: '1px solid var(--border)',
+            }}>
+              {[
+                ['overview', 'Overview', LayoutGrid],
+                ['next-steps', 'Next steps', ListChecks],
+              ].map(([v, label, Icon]) => (
+                <button
+                  key={v}
+                  onClick={() => setTab(v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+                    cursor: 'pointer', border: 'none', transition: 'all 0.12s',
+                    background: tab === v ? 'white' : 'transparent',
+                    color: tab === v ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                    boxShadow: tab === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  <Icon size={13} /> {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            className="btn btn-primary"
+            onClick={runAnalysis}
+            disabled={loading || !hasData}
+            title={!hasData ? 'Add a resume and some listings first' : ''}
+          >
+            {loading
+              ? <><span className="spinner" /> Analysing…</>
+              : <><Zap size={13} /> {current ? <><RefreshCw size={12} /> Re-run</> : 'Run analysis'}</>
+            }
+          </button>
+        </div>
       </div>
 
       {!hasData && (
@@ -506,97 +640,150 @@ export default function AnalysisPage() {
 
       {current && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} className="animate-in">
-          {/* Summary */}
-          {current.analysis_text && (
-            <div className="card" style={{ padding: 20 }}>
-              <p className="section-header" style={{ marginBottom: 12 }}>Summary</p>
-              <p style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
-                {current.analysis_text}
-              </p>
-            </div>
-          )}
+          {tab === 'overview' ? (
+            <>
+              {/* Summary */}
+              {current.analysis_text && (
+                <div className="card" style={{ padding: 20 }}>
+                  <p className="section-header" style={{ marginBottom: 12 }}>Summary</p>
+                  <p style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
+                    {current.analysis_text}
+                  </p>
+                </div>
+              )}
 
-          {/* Skills grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-            {[
-              { label: 'Skills you have', type: 'present', data: current.skills_present },
-              { label: 'Partial / implicit', type: 'partial', data: current.skills_partial },
-              { label: 'Skills to develop', type: 'missing', data: current.skills_missing },
-            ].map(({ label, type, data }) => (
-              <div key={type} className="card" style={{ padding: 16 }}>
-                <p className="section-header" style={{ marginBottom: 12 }}>{label}</p>
-                {data?.length > 0
-                  ? <SkillsGrid skills={data} type={type} />
-                  : <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>None identified</p>
-                }
-              </div>
-            ))}
-          </div>
-
-          {/* Portfolio → Resume */}
-          {current.skills_from_portfolio?.length > 0 && (
-            <div>
-              <p className="section-header" style={{ marginBottom: 4 }}>In your portfolio, not your resume</p>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
-                Your case studies demonstrate these market-desired skills, but the wording isn't showing up on your resume yet.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {current.skills_from_portfolio.map((item, i) => (
-                  <PortfolioGapCard
-                    key={i}
-                    item={item}
-                    roles={liveStructured?.experience || []}
-                    structuredData={liveStructured}
-                    resumeId={resume?.id}
-                    onBulletAdded={updated => setLiveStructured(updated)}
-                  />
+              {/* Skills grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                {[
+                  { label: 'Skills you have', type: 'present', data: current.skills_present },
+                  { label: 'Partial / implicit', type: 'partial', data: current.skills_partial },
+                  { label: 'Skills to develop', type: 'missing', data: current.skills_missing },
+                ].map(({ label, type, data }) => (
+                  <div key={type} className="card" style={{ padding: 16 }}>
+                    <p className="section-header" style={{ marginBottom: 12 }}>{label}</p>
+                    {data?.length > 0
+                      ? <SkillsGrid skills={data} type={type} />
+                      : <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>None identified</p>
+                    }
+                  </div>
                 ))}
               </div>
-            </div>
-          )}
+            </>
+          ) : (
+            <>
+              {/* Portfolio → Resume */}
+              {current.skills_from_portfolio?.length > 0 && (
+                <div>
+                  <p className="section-header" style={{ marginBottom: 4 }}>In your portfolio, not your resume</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
+                    Your case studies demonstrate these market-desired skills, but the wording isn't showing up on your resume yet.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {current.skills_from_portfolio.map((item, i) => (
+                      <PortfolioGapCard
+                        key={i}
+                        item={item}
+                        roles={liveStructured?.experience || []}
+                        structuredData={liveStructured}
+                        resumeId={resume?.id}
+                        onBulletAdded={updated => setLiveStructured(updated)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Action plan */}
-          {current.action_plan?.length > 0 && (
-            <div>
-              <p className="section-header" style={{ marginBottom: 12 }}>Action plan · ordered by impact</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {current.action_plan.map((item, i) => (
-                  <ActionItem key={i} item={item} index={i} />
-                ))}
-              </div>
-            </div>
-          )}
+              {/* Action plan */}
+              {current.action_plan?.length > 0 && (
+                <div>
+                  <p className="section-header" style={{ marginBottom: 12 }}>Action plan · ordered by impact</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {current.action_plan.map((item, i) => (
+                      <ActionItem key={i} item={item} index={i} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Resume Workshop */}
-          {workshopSkills.length > 0 && (
-            <div>
-              <div style={{ marginBottom: 16 }}>
-                <p className="section-header" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <PenLine size={11} /> Resume Workshop
-                </p>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  Describe your experience with each skill in plain language — get polished resume bullets back.
-                  {!hasStructuredExperience && (
-                    <span style={{ color: 'var(--maybe)', marginLeft: 6 }}>
-                      Set up your structured resume to save bullets directly.
-                    </span>
+              {/* Resume Workshop */}
+              {workshopSkills.length > 0 && (
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <p className="section-header" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <PenLine size={11} /> Resume Workshop
+                    </p>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                      Describe your experience with each skill in plain language — get polished resume bullets back.
+                      {!hasStructuredExperience && (
+                        <span style={{ color: 'var(--maybe)', marginLeft: 6 }}>
+                          Set up your structured resume to save bullets directly.
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {workshopSkills.map(({ skill, type }) => (
+                      <WorkshopCard
+                        key={skill}
+                        skill={skill}
+                        type={type}
+                        roles={liveStructured?.experience || []}
+                        structuredData={liveStructured}
+                        resumeId={resume?.id}
+                        onBulletAdded={updated => setLiveStructured(updated)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Projects to build */}
+              {(current.skills_missing?.length > 0 || current.skills_partial?.length > 0) && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                    <div>
+                      <p className="section-header" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <Hammer size={11} /> Projects to build
+                      </p>
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                        Concrete portfolio project ideas that would close your skill gaps.
+                      </p>
+                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ gap: 6, whiteSpace: 'nowrap' }}
+                      onClick={suggestProjects}
+                      disabled={suggestingProjects}
+                    >
+                      {suggestingProjects
+                        ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> Thinking…</>
+                        : <><Sparkles size={13} /> {current.project_suggestions?.length > 0 ? 'Re-suggest' : 'Suggest projects'}</>
+                      }
+                    </button>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <InterestsEditor onChange={setInterests} />
+                  </div>
+
+                  {projectError && (
+                    <p style={{ fontSize: 12, color: 'var(--no)', marginBottom: 12 }}>{projectError}</p>
                   )}
-                </p>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {workshopSkills.map(({ skill, type }) => (
-                  <WorkshopCard
-                    key={skill}
-                    skill={skill}
-                    type={type}
-                    roles={liveStructured?.experience || []}
-                    structuredData={liveStructured}
-                    resumeId={resume?.id}
-                    onBulletAdded={updated => setLiveStructured(updated)}
-                  />
-                ))}
-              </div>
-            </div>
+
+                  {current.project_suggestions?.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {current.project_suggestions.map((s, i) => (
+                        <ProjectSuggestionCard key={i} suggestion={s} />
+                      ))}
+                    </div>
+                  ) : !suggestingProjects && (
+                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                      No suggestions yet — click "Suggest projects" above.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           <p style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'DM Mono', textAlign: 'right' }}>

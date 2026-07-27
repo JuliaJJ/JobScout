@@ -1,9 +1,10 @@
 import { useState, useEffect, Fragment } from 'react'
-import { ExternalLink, Archive, FileText, Users, Briefcase, RotateCcw, ArrowLeft, Scale } from 'lucide-react'
+import { ExternalLink, Archive, FileText, Users, Briefcase, RotateCcw, ArrowLeft, Scale, Layout, TrendingUp } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import CoverLetterModal from '../components/CoverLetterModal.jsx'
 import ContactsModal from '../components/ContactsModal.jsx'
 import RelevantPiecesModal from '../components/RelevantPiecesModal.jsx'
+import ActivityView from '../components/ActivityView.jsx'
 import { benchmarkSalary } from '../lib/salaryUtils.js'
 
 const COLUMNS = [
@@ -424,6 +425,7 @@ export default function PipelinePage() {
   const [listings, setListings] = useState([])
   const [marketListings, setMarketListings] = useState([])
   const [offerDetails, setOfferDetails] = useState({})
+  const [mainView, setMainView] = useState('pipeline') // 'pipeline' | 'activity'
   const [view, setView] = useState('kanban')
   const [loading, setLoading] = useState(true)
   const [draggingId, setDraggingId] = useState(null)
@@ -513,28 +515,59 @@ export default function PipelinePage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Pipeline</h1>
-          <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
-            {active} active application{active !== 1 ? 's' : ''} · drag cards between columns to update status
-            {followupCount > 0 && (
-              <span style={{ color: '#d97706', fontWeight: 600, marginLeft: 6 }}>
-                · {followupCount} need follow-up
-              </span>
-            )}
-          </p>
+          {mainView === 'pipeline' ? (
+            <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
+              {active} active application{active !== 1 ? 's' : ''} · drag cards between columns to update status
+              {followupCount > 0 && (
+                <span style={{ color: '#d97706', fontWeight: 600, marginLeft: 6 }}>
+                  · {followupCount} need follow-up
+                </span>
+              )}
+            </p>
+          ) : (
+            <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
+              Momentum and conversion across your whole search
+            </p>
+          )}
         </div>
-        {canCompare && view === 'kanban' && (
-          <button
-            className="btn btn-secondary"
-            onClick={() => setView('offers')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Scale size={13} />
-            Compare Offers ({offerListings.length})
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            display: 'flex', gap: 2, background: 'var(--bg)',
+            borderRadius: 8, padding: 3, border: '1px solid var(--border)',
+          }}>
+            {[['pipeline', 'Pipeline', Layout], ['activity', 'Activity', TrendingUp]].map(([v, label, Icon]) => (
+              <button
+                key={v}
+                onClick={() => setMainView(v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+                  cursor: 'pointer', border: 'none', transition: 'all 0.12s',
+                  background: mainView === v ? 'white' : 'transparent',
+                  color: mainView === v ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  boxShadow: mainView === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                <Icon size={13} /> {label}
+              </button>
+            ))}
+          </div>
+          {mainView === 'pipeline' && canCompare && view === 'kanban' && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setView('offers')}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Scale size={13} />
+              Compare Offers ({offerListings.length})
+            </button>
+          )}
+        </div>
       </div>
 
-      {loading ? (
+      {mainView === 'activity' ? (
+        <ActivityView />
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: 64, color: 'var(--text-tertiary)' }}>
           <span className="spinner" style={{ margin: '0 auto' }} />
         </div>

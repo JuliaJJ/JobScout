@@ -68,7 +68,7 @@ function EventRow({ event }) {
   )
 }
 
-export default function ActivityPage() {
+export default function ActivityView() {
   const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -76,7 +76,7 @@ export default function ActivityPage() {
     async function load() {
       const { data } = await supabase
         .from('job_listings')
-        .select('id, title, company, created_at, applied_at, application_status, contacts')
+        .select('id, title, company, created_at, applied_at, application_status, contacts, is_archived')
         .order('created_at', { ascending: false })
       setListings(data || [])
       setLoading(false)
@@ -94,7 +94,7 @@ export default function ActivityPage() {
 
   // Summary stats
   const appliedCount = listings.filter(l => l.application_status).length
-  const active = listings.filter(l => l.application_status && l.application_status !== 'closed').length
+  const active = listings.filter(l => l.application_status && l.application_status !== 'closed' && !l.is_archived).length
   const offers = listings.filter(l => l.application_status === 'offer').length
 
   // Build full event list
@@ -148,12 +148,9 @@ export default function ActivityPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Activity</h1>
-        <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
-          {recentSaved} saved · {recentApplied} applied in the last 30 days
-        </p>
-      </div>
+      <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginBottom: 20 }}>
+        {recentSaved} saved · {recentApplied} applied in the last 30 days
+      </p>
 
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
