@@ -46,8 +46,10 @@ SKILLS TO DEVELOP:
 - Partial / underdeveloped (implied but not clearly demonstrated): ${skills_partial?.length ? skills_partial.join(', ') : 'none'}
 
 ${portfolioContext ? `EXISTING PORTFOLIO PROJECTS:\n${portfolioContext}\n` : 'EXISTING PORTFOLIO PROJECTS: none provided.\n'}
-${interestsContext ? `PERSONAL INTERESTS / HOBBIES (use for color and personalization only where a genuine fit exists — never force a contrived connection):\n${interestsContext}\n` : 'PERSONAL INTERESTS / HOBBIES: none provided.\n'}
+${interestsContext ? `PERSONAL INTERESTS / HOBBIES:\n${interestsContext}\n` : 'PERSONAL INTERESTS / HOBBIES: none provided.\n'}
 Suggest 3-5 project ideas, ordered by impact. Each should target one or more of the skills above, be distinct from the existing portfolio (don't suggest something too similar to a project already listed), and be realistically scoped for someone building it alongside a job search.
+
+${interestsContext ? `An interest doesn't need to relate to the skill itself to count as a genuine tie-in — it can simply inspire the project's subject matter or domain. For example, an interest in cooking doesn't need to involve "cooking skills," but could inspire a recipe-organizing app that happens to demonstrate service design or information architecture. Actively look for a domain connection like this for at least one or two of your suggestions before concluding none applies — but still don't force a tie-in onto every suggestion if nothing reasonable comes to mind for it.\n` : ''}
 
 Return ONLY a JSON object with this exact structure:
 {
