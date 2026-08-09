@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { Save, Clock, Upload, Plus, Trash2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react'
+import { Save, Clock, Upload, Plus, Trash2, ChevronUp, ChevronDown, Sparkles, User } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { serialize } from '../lib/resumeUtils.js'
+import InterestsEditor from '../components/InterestsEditor.jsx'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
 const EMPTY = { summary: '', experience: [], education: [], skills: [], certifications: [] }
+const WORK_PREFERENCES = ['remote', 'hybrid', 'onsite', 'flexible']
 
 const newExp = () => ({ id: crypto.randomUUID(), title: '', company: '', location: '', startDate: '', endDate: '', current: false, bullets: [''] })
 const newEdu = () => ({ id: crypto.randomUUID(), degree: '', field: '', institution: '', graduationYear: '' })
@@ -24,8 +26,116 @@ function withIds(data) {
   }
 }
 
+// ── Profile section ──────────────────────────────────────────────────────────
+// Logistics/preferences that inform job fit beyond skills — persists independent
+// of any single resume version.
 
-export default function ResumePage() {
+function ProfileSection() {
+  const [profileId, setProfileId] = useState(null)
+  const [salaryMin, setSalaryMin] = useState('')
+  const [salaryMax, setSalaryMax] = useState('')
+  const [workPreference, setWorkPreference] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('profile').select('*').limit(1).maybeSingle()
+      if (data) {
+        setProfileId(data.id)
+        setSalaryMin(data.salary_min ?? '')
+        setSalaryMax(data.salary_max ?? '')
+        setWorkPreference(data.work_preference || '')
+        setNotes(data.notes || '')
+      }
+    }
+    load()
+  }, [])
+
+  async function save(updates) {
+    setSaving(true)
+    if (profileId) {
+      await supabase.from('profile').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', profileId)
+    } else {
+      const { data } = await supabase.from('profile').insert(updates).select().single()
+      if (data) setProfileId(data.id)
+    }
+    setSaving(false)
+  }
+
+  function saveSalary() {
+    save({
+      salary_min: salaryMin !== '' ? parseInt(salaryMin) : null,
+      salary_max: salaryMax !== '' ? parseInt(salaryMax) : null,
+    })
+  }
+
+  return (
+    <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+        <User size={12} color="var(--text-tertiary)" />
+        <p className="section-header" style={{ margin: 0 }}>Profile</p>
+        {saving && <span className="spinner" style={{ width: 11, height: 11, borderWidth: 1.5 }} />}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 18 }}>
+        <div>
+          <label className="label">Target salary (annual base, USD)</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className="input"
+              type="number"
+              placeholder="Min e.g. 150000"
+              value={salaryMin}
+              onChange={e => setSalaryMin(e.target.value)}
+              onBlur={saveSalary}
+            />
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 13, flexShrink: 0 }}>–</span>
+            <input
+              className="input"
+              type="number"
+              placeholder="Max e.g. 190000"
+              value={salaryMax}
+              onChange={e => setSalaryMax(e.target.value)}
+              onBlur={saveSalary}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Work preference</label>
+          <select
+            className="input"
+            value={workPreference}
+            onChange={e => { setWorkPreference(e.target.value); save({ work_preference: e.target.value || null }) }}
+          >
+            <option value="">Not set</option>
+            {WORK_PREFERENCES.map(p => (
+              <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="label">Other notes</label>
+          <input
+            className="input"
+            placeholder="Relocation, notice period, other constraints…"
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            onBlur={() => save({ notes: notes.trim() || null })}
+          />
+        </div>
+      </div>
+
+      <InterestsEditor />
+    </div>
+  )
+}
+
+// ── Resume editor ─────────────────────────────────────────────────────────────
+
+export default function ProfilePage() {
   const [structured, setStructured] = useState(EMPTY)
   const [label, setLabel] = useState('Current Resume')
   const [versions, setVersions] = useState([])
@@ -233,9 +343,9 @@ export default function ResumePage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Resume</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }}>Profile</h1>
           <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 2 }}>
-            Structured resume · powers gap analysis comparisons
+            Preferences, interests, and structured resume · powers gap analysis comparisons
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -257,6 +367,8 @@ export default function ResumePage() {
           </button>
         </div>
       </div>
+
+      <ProfileSection />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

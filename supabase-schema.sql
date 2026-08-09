@@ -48,6 +48,16 @@ create table resume_versions (
 -- Migration: add structured_data to existing resume_versions tables
 -- alter table resume_versions add column if not exists structured_data jsonb;
 
+-- Profile (single row — logistics/preferences that inform job fit beyond skills)
+create table profile (
+  id uuid primary key default uuid_generate_v4(),
+  updated_at timestamptz default now(),
+  salary_min integer, -- annual USD base, target
+  salary_max integer, -- annual USD base, target
+  work_preference text check (work_preference in ('remote', 'hybrid', 'onsite', 'flexible')),
+  notes text -- freeform: relocation, notice period, other constraints
+);
+
 -- Gap analyses table
 create table gap_analyses (
   id uuid primary key default uuid_generate_v4(),
@@ -155,6 +165,7 @@ alter table resume_versions disable row level security;
 alter table gap_analyses disable row level security;
 alter table portfolio_pieces disable row level security;
 alter table interests disable row level security;
+alter table profile disable row level security;
 alter table interview_stories disable row level security;
 alter table interview_prep disable row level security;
 alter table offer_details disable row level security;

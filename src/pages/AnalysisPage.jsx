@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Zap, RefreshCw, ChevronDown, ChevronUp, PenLine, LayoutGrid, ListChecks, Hammer, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { serialize } from '../lib/resumeUtils.js'
-import InterestsEditor from '../components/InterestsEditor.jsx'
 
 // ── Existing analysis components ───────────────────────────────────────────────
 
@@ -252,7 +251,7 @@ function WorkshopCard({ skill, type, roles, structuredData, resumeId, onBulletAd
                   </div>
                 ) : (
                   <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                    Add experience entries on the Resume page to save bullets directly.
+                    Add experience entries on the Profile page to save bullets directly.
                   </p>
                 )}
 
@@ -355,7 +354,7 @@ function PortfolioGapCard({ item, roles, structuredData, resumeId, onBulletAdded
         </div>
       ) : (
         <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8 }}>
-          Add experience entries on the Resume page to save bullets directly.
+          Add experience entries on the Profile page to save bullets directly.
         </p>
       )}
     </div>
@@ -422,17 +421,19 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: rv }, { data: jl }, { data: pp }, { data: ga }] = await Promise.all([
+      const [{ data: rv }, { data: jl }, { data: pp }, { data: ga }, { data: ints }] = await Promise.all([
         supabase.from('resume_versions').select('*').eq('is_active', true).single(),
         supabase.from('job_listings').select('*').eq('is_archived', false).neq('interest_rating', 'no'),
         supabase.from('portfolio_pieces').select('*'),
         supabase.from('gap_analyses').select('*').order('created_at', { ascending: false }).limit(5),
+        supabase.from('interests').select('*'),
       ])
       setResume(rv)
       if (rv?.structured_data) setLiveStructured(rv.structured_data)
       setListings(jl || [])
       setPortfolio(pp || [])
       setPastAnalyses(ga || [])
+      setInterests(ints || [])
     }
     load()
   }, [])
@@ -611,7 +612,7 @@ export default function AnalysisPage() {
 
       {!hasData && (
         <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-tertiary)' }}>
-          {!resume && <p style={{ marginBottom: 8 }}>→ Save your resume on the Resume tab</p>}
+          {!resume && <p style={{ marginBottom: 8 }}>→ Save your resume on the Profile tab</p>}
           {listings.length === 0 && <p>→ Add and rate some listings on the Listings tab</p>}
         </div>
       )}
@@ -747,6 +748,7 @@ export default function AnalysisPage() {
                       </p>
                       <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                         Concrete portfolio project ideas that would close your skill gaps.
+                        {interests.length === 0 && ' Add interests on the Profile page to personalize these.'}
                       </p>
                     </div>
                     <button
@@ -760,10 +762,6 @@ export default function AnalysisPage() {
                         : <><Sparkles size={13} /> {current.project_suggestions?.length > 0 ? 'Re-suggest' : 'Suggest projects'}</>
                       }
                     </button>
-                  </div>
-
-                  <div style={{ marginBottom: 16 }}>
-                    <InterestsEditor onChange={setInterests} />
                   </div>
 
                   {projectError && (

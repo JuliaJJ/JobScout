@@ -100,7 +100,7 @@ export default function CoverLetterModal({ listing, onClose, onSaved }) {
 
         {resumeMissing ? (
           <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-            No active resume found. Save a resume on the Resume page first.
+            No active resume found. Save a resume on the Profile page first.
           </div>
         ) : (
           <>

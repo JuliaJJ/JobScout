@@ -8,9 +8,11 @@ export default function InterestsEditor({ onChange }) {
   const [label, setLabel] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function load() {
-    const { data } = await supabase.from('interests').select('*').order('created_at', { ascending: true })
+    const { data, error: err } = await supabase.from('interests').select('*').order('created_at', { ascending: true })
+    if (err) { setError(err.message); return }
     setInterests(data || [])
     onChange?.(data || [])
   }
@@ -20,8 +22,10 @@ export default function InterestsEditor({ onChange }) {
   async function addInterest() {
     if (!label.trim()) return
     setSaving(true)
-    await supabase.from('interests').insert({ label: label.trim(), notes: notes.trim() || null })
+    setError('')
+    const { error: err } = await supabase.from('interests').insert({ label: label.trim(), notes: notes.trim() || null })
     setSaving(false)
+    if (err) { setError(err.message); return }
     setLabel('')
     setNotes('')
     setAdding(false)
@@ -29,7 +33,9 @@ export default function InterestsEditor({ onChange }) {
   }
 
   async function deleteInterest(id) {
-    await supabase.from('interests').delete().eq('id', id)
+    setError('')
+    const { error: err } = await supabase.from('interests').delete().eq('id', id)
+    if (err) { setError(err.message); return }
     load()
   }
 
@@ -38,6 +44,9 @@ export default function InterestsEditor({ onChange }) {
       <label className="label" style={{ marginBottom: 6 }}>
         Interests &amp; hobbies <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>(optional — helps personalize project ideas)</span>
       </label>
+      {error && (
+        <p style={{ fontSize: 12, color: 'var(--no)', marginBottom: 8 }}>{error}</p>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
         {interests.map(i => (
           <span

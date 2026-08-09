@@ -393,7 +393,7 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [], resume
                 style={{ fontSize: 11, gap: 5, padding: '4px 8px' }}
                 onClick={checkFit}
                 disabled={checkingFit || !resumeContent}
-                title={!resumeContent ? 'Save a resume on the Resume page first' : ''}
+                title={!resumeContent ? 'Save a resume on the Profile page first' : ''}
               >
                 <Sparkles size={11} />
                 {checkingFit ? 'Checking…' : fitCheck ? 'Re-check' : 'Check fit'}
@@ -442,7 +442,7 @@ function ListingCard({ listing, onUpdate, onDelete, portfolioPieces = [], resume
               </div>
             ) : (
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                {resumeContent ? 'Check how your resume and portfolio stack up against this specific listing.' : 'Save a resume on the Resume page first.'}
+                {resumeContent ? 'Check how your resume and portfolio stack up against this specific listing.' : 'Save a resume on the Profile page first.'}
               </p>
             )}
           </div>
