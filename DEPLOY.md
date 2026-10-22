@@ -77,6 +77,25 @@ LinkedIn blocks automated fetches. Two options:
 
 ---
 
+## Rubric audit (added 2026-10-22)
+
+The **Audit** tab scores your portfolio, featured case studies and resume against the 50-criterion revision rubric in `src/lib/rubric.js`, then merges the gaps with your latest Gap Analysis into one action plan.
+
+1. In Supabase **SQL Editor**, run `supabase-migration-rubric-audit.sql` once. It adds `profile.portfolio_url`, `portfolio_pieces.featured`, and the `rubric_audits` and `rubric_self_scores` tables.
+2. Optional: add `PAGESPEED_API_KEY` in Vercel (Google Cloud → enable PageSpeed Insights API → create an API key). Without it, PageSpeed works at low volume.
+3. Open **Audit**, enter your portfolio URL, tick 3–5 featured case studies, and run it.
+
+How it scores:
+- Claude (`claude-sonnet-4-6`) scores each featured case study, the homepage + portfolio set, and the resume, one call each, in parallel. A score of 2 only stands if Claude's supporting quote is found verbatim in your material; otherwise it is downgraded to 1 and flagged.
+- PageSpeed Insights scores mobile performance (P4) and accessibility (Q3).
+- JobScout data scores featured count, length, résumé link, STAR stories and contacts.
+- Visual craft and interview readiness are self-assessed on the Self-assessment tab and carry over between audits.
+- **Score against** a single listing to re-weight the C-grade items for that company.
+
+To change the rubric, edit `src/lib/rubric.js` and bump `RUBRIC_VERSION`; older audits are labelled "old rubric" in history.
+
+---
+
 ## Local development
 
 ```bash

@@ -55,8 +55,12 @@ create table profile (
   salary_min integer, -- annual USD base, target
   salary_max integer, -- annual USD base, target
   work_preference text check (work_preference in ('remote', 'hybrid', 'onsite', 'flexible')),
-  notes text -- freeform: relocation, notice period, other constraints
+  notes text, -- freeform: relocation, notice period, other constraints
+  portfolio_url text -- live portfolio homepage, used by the rubric audit
 );
+
+-- Migration: add portfolio_url to existing profile tables
+-- alter table profile add column if not exists portfolio_url text;
 
 -- Gap analyses table
 create table gap_analyses (
@@ -102,11 +106,15 @@ create table portfolio_pieces (
   url text,
   role_clusters jsonb default '[]', -- subset of: ux, product-design, design-engineer, design-technologist
   skills jsonb default '[]',
-  mdx_content text -- raw .mdx file content for case study uploads
+  mdx_content text, -- raw .mdx file content for case study uploads
+  featured boolean default false -- shown as a featured case study on the portfolio (rubric audit S1)
 );
 
 -- Migration: add mdx_content to existing portfolio_pieces tables
 -- alter table portfolio_pieces add column if not exists mdx_content text;
+
+-- Migration: add featured to existing portfolio_pieces tables
+-- alter table portfolio_pieces add column if not exists featured boolean default false;
 
 -- Personal interests/hobbies (optional color for project suggestions — a short tagged list, not one big text field)
 create table interests (
@@ -159,6 +167,32 @@ create table offer_details (
   notes text
 );
 
+-- Rubric audits (portfolio + resume scored against src/lib/rubric.js)
+create table rubric_audits (
+  id uuid primary key default uuid_generate_v4(),
+  created_at timestamptz default now(),
+  rubric_version text not null,
+  scope text check (scope in ('general', 'listing')) default 'general',
+  listing_id uuid references job_listings(id) on delete set null,
+  resume_version_id uuid references resume_versions(id) on delete set null,
+  portfolio_url text,
+  featured_piece_ids jsonb default '[]',
+  scores jsonb default '{}', -- { [criterionId]: { score, evidence, evidence_verified, fix, note, source, per_study? } }
+  weights jsonb default '{}', -- { [criterionId]: { weight, boosted, matchShare } }
+  psi jsonb, -- PageSpeed Insights summary: { performance, accessibility, lcp, a11yIssues }
+  points int,
+  max_points int,
+  errors jsonb default '[]' -- steps that failed during the run
+);
+
+-- Self-assessed rubric criteria (visual craft, interview readiness) — persist across audits
+create table rubric_self_scores (
+  criterion_id text primary key,
+  updated_at timestamptz default now(),
+  score int check (score between 0 and 2),
+  notes text
+);
+
 -- RLS: disable for personal tool (single user)
 alter table job_listings disable row level security;
 alter table resume_versions disable row level security;
@@ -169,3 +203,5 @@ alter table profile disable row level security;
 alter table interview_stories disable row level security;
 alter table interview_prep disable row level security;
 alter table offer_details disable row level security;
+alter table rubric_audits disable row level security;
+alter table rubric_self_scores disable row level security;
