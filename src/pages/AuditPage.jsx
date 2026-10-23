@@ -326,6 +326,7 @@ export default function AuditPage() {
     return items.sort((a, b) => b.gap - a.gap || (a.kind === 'rubric' ? -1 : 1))
   }, [summary, includeSkills, latestGap])
 
+  const protectedIds = scores ? CRITERIA.filter(c => scores[c.id]?.unscored_reason === 'protected').map(c => c.id) : []
   const unscoredSelf = criteriaFor('self').filter(c => selfScores[c.id]?.score === null || selfScores[c.id]?.score === undefined).length
   const scopeLabel = a => (a.scope === 'listing'
     ? (() => { const l = listings.find(x => x.id === a.listing_id); return l ? `${l.title} · ${l.company}` : 'One listing' })()
@@ -421,6 +422,13 @@ export default function AuditPage() {
 
       {current && summary && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} className="animate-in">
+          {protectedIds.length > 0 && (
+            <div className="card" style={{ padding: '12px 16px', background: 'var(--bg)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Password-protected portfolio.</strong>{' '}
+              {protectedIds.length} live-site criteria ({protectedIds.join(', ')}) are unscored and left out of the totals.
+              Case studies are still scored from the content saved in JobScout. Check the live-site items by hand when you share your link.
+            </div>
+          )}
           {/* Summary */}
           <div className="card" style={{ padding: 20, display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24 }}>
             <div>

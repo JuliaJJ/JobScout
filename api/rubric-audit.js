@@ -9,7 +9,7 @@
 //   site        { url }                      → PageSpeed Insights performance + accessibility
 
 import Anthropic from '@anthropic-ai/sdk'
-import { criteriaFor } from '../src/lib/rubric.js'
+import { criteriaFor, protectedScore } from '../src/lib/rubric.js'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = 'claude-sonnet-4-6'
@@ -92,8 +92,20 @@ export async function fetchHomepage(url) {
       headers: { 'User-Agent': 'Mozilla/5.0 (JobScout portfolio audit)' },
       redirect: 'follow',
     })
+    // Password gates: HTTP auth, a redirect to a hosting provider's login (e.g. Vercel SSO),
+    // or a page whose main content is a password form.
+    if (res.status === 401 || res.status === 403) return { protected: true, reason: `HTTP ${res.status}` }
+    let finalHost = ''
+    try { finalHost = new URL(res.url).hostname } catch { finalHost = '' }
+    let startHost = ''
+    try { startHost = new URL(url).hostname } catch { startHost = '' }
+    if (finalHost && startHost && finalHost !== startHost && /(^|\.)vercel\.com$|(^|\.)netlify\.com$|auth|login|sso/i.test(finalHost)) {
+      return { protected: true, reason: `redirected to ${finalHost}` }
+    }
     if (!res.ok) return { error: `Homepage returned HTTP ${res.status}` }
     const html = await res.text()
+    const hasPasswordField = /<input[^>]+type=["']?password/i.test(html)
+    if (hasPasswordField) return { protected: true, reason: 'password form on the homepage' }
     const links = [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]
       .map(([, href, inner]) => `${htmlToText(inner).replace(/\s+/g, ' ').slice(0, 60) || '(no text)'} → ${href}`)
       .slice(0, 60)
@@ -104,7 +116,6 @@ export async function fetchHomepage(url) {
       description,
       text: htmlToText(html).slice(0, 8000),
       links,
-      hasPasswordField: /<input[^>]+type=["']password["']/i.test(html),
     }
   } catch (e) {
     return { error: e.name === 'AbortError' ? 'Homepage took longer than 10 seconds to load' : e.message }
@@ -119,7 +130,6 @@ function homepageBlock(home) {
   return [
     `HOMEPAGE TITLE: ${home.title || '(none)'}`,
     home.description && `META DESCRIPTION: ${home.description}`,
-    `PASSWORD FIELD ON HOMEPAGE: ${home.hasPasswordField ? 'yes' : 'no'}`,
     `HOMEPAGE TEXT (in page order; the first lines are the first screen):\n${home.text}`,
     `HOMEPAGE LINKS (text → href):\n${home.links.join('\n')}`,
   ].filter(Boolean).join('\n\n')
@@ -247,6 +257,9 @@ export default async function handler(req, res) {
     if (mode === 'site') {
       const { url } = req.body
       if (!url) return res.status(400).json({ error: 'Portfolio URL required' })
+      // PageSpeed against a password page would measure the login screen, not the portfolio.
+      const home = await fetchHomepage(url)
+      if (home?.protected) return res.json({ psi: null, protected: true, reason: home.reason })
       return res.json({ psi: await runPageSpeed(url) })
     }
 
@@ -272,35 +285,44 @@ export default async function handler(req, res) {
     if (mode === 'portfolio') {
       const { homepageUrl, pieces = [], target } = req.body
       const home = await fetchHomepage(homepageUrl)
+      const isProtected = !!home?.protected
       const pieceList = pieces.map(p => {
         const desc = (p.description || p.mdx_content || '').replace(/\s+/g, ' ').trim().slice(0, 400)
         return `- ${p.featured ? '[FEATURED] ' : ''}"${p.title}" (${p.type || 'Project'})${p.url ? ` — link: ${p.url}` : ' — no link'}${desc ? `\n  ${desc}` : ''}`
       }).join('\n')
-      const material = `${homepageBlock(home)}\n\nPORTFOLIO PIECES IN JOBSCOUT:\n${pieceList || '(none)'}`
+      const material = `${isProtected ? 'HOMEPAGE: password-protected; not available.' : homepageBlock(home)}\n\nPORTFOLIO PIECES IN JOBSCOUT:\n${pieceList || '(none)'}`
+      // Homepage criteria can't be judged behind a password, so they are not sent to Claude at all.
+      const criteria = criteriaFor('portfolio').filter(c => !(isProtected && c.needsLiveSite))
       const scores = await scoreWithClaude({
-        criteria: criteriaFor('portfolio'),
+        criteria,
         material,
         context: target,
         task: 'Score this portfolio as a whole. Homepage criteria (P1, P2, P3, P6) depend on the homepage; if it could not be loaded, score them 0 and say so in the fix.',
       })
-      return res.json({ scores, homepage: home?.error ? { error: home.error } : { title: home?.title || '' } })
+      if (isProtected) criteriaFor('portfolio').filter(c => c.needsLiveSite).forEach(c => { scores[c.id] = protectedScore(c.id) })
+      return res.json({
+        scores,
+        homepage: isProtected ? { protected: true, reason: home.reason } : home?.error ? { error: home.error } : { title: home?.title || '' },
+      })
     }
 
     if (mode === 'resume') {
       const { resume, homepageUrl, target, keywords = [] } = req.body
       if (!resume) return res.status(400).json({ error: 'Resume required' })
       const home = await fetchHomepage(homepageUrl)
+      const isProtected = !!home?.protected
       const material = [
         `RESUME:\n${resume.slice(0, 12000)}`,
         `KEYWORDS FROM TARGET POSTINGS (for R5): ${keywords.slice(0, 40).join(', ') || '(none provided)'}`,
-        `PORTFOLIO HOMEPAGE, for comparing titles and positioning (R8):\n${home && !home.error ? home.text.slice(0, 3000) : '(not available)'}`,
+        `PORTFOLIO HOMEPAGE, for comparing titles and positioning (R8):\n${home?.text ? home.text.slice(0, 3000) : '(not available)'}`,
       ].join('\n\n')
       const scores = await scoreWithClaude({
-        criteria: criteriaFor('resume'),
+        criteria: criteriaFor('resume').filter(c => !(isProtected && c.needsLiveSite)),
         material,
         context: target,
         task: 'Score this resume. Quote evidence from the RESUME section unless the criterion is about the portfolio comparison.',
       })
+      if (isProtected) criteriaFor('resume').filter(c => c.needsLiveSite).forEach(c => { scores[c.id] = protectedScore(c.id) })
       return res.json({ scores })
     }
 
