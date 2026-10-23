@@ -171,6 +171,8 @@ async function scoreWithClaude({ criteria, material, context, task }) {
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: 3000,
+    // Deterministic as possible, so re-running an unchanged portfolio gives the same scores.
+    temperature: 0,
     system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     tools: [tool],
     tool_choice: { type: 'tool', name: 'record_scores' },

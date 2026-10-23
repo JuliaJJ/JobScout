@@ -189,6 +189,46 @@ function SelfScoreRow({ c, value, onSave }) {
   )
 }
 
+function ChangesCard({ changes, previous, current }) {
+  const [open, setOpen] = useState(false)
+  const fmt = v => (v === null ? '—' : v)
+  const prevPct = previous.max_points ? Math.round((previous.points / previous.max_points) * 100) : null
+  const sameInputs = JSON.stringify(previous.featured_piece_ids || []) === JSON.stringify(current.featured_piece_ids || [])
+    && previous.resume_version_id === current.resume_version_id
+    && (previous.scope || 'general') === (current.scope || 'general')
+    && (previous.listing_id || null) === (current.listing_id || null)
+  return (
+    <div className="card" style={{ overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setOpen(!open)}>
+        <span style={{ fontWeight: 500, fontSize: 14, flex: 1 }}>
+          {changes.length} score{changes.length === 1 ? '' : 's'} changed since {new Date(previous.created_at).toLocaleString()}
+          {prevPct !== null && <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}> (was {prevPct}%)</span>}
+        </span>
+        {open ? <ChevronUp size={14} color="var(--text-tertiary)" /> : <ChevronDown size={14} color="var(--text-tertiary)" />}
+      </div>
+      {open && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {sameInputs && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              Same resume, featured studies and scope as last time, so these changes come from scoring variation or from content edited in JobScout.
+            </p>
+          )}
+          {changes.map(({ c, before, after, delta }) => (
+            <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
+              <span style={{ fontFamily: 'DM Mono', fontSize: 11, color: 'var(--text-tertiary)', minWidth: 28 }}>{c.id}</span>
+              <span style={{ flex: 1 }}>{c.criterion}</span>
+              <span style={{ fontFamily: 'DM Mono', fontSize: 12 }}>{fmt(before)} → {fmt(after)}</span>
+              <span style={{ fontFamily: 'DM Mono', fontSize: 12, minWidth: 36, textAlign: 'right', color: delta > 0 ? 'var(--yes)' : delta < 0 ? 'var(--no)' : 'var(--text-tertiary)' }}>
+                {delta > 0 ? '+' : ''}{delta}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AuditPage() {
@@ -326,6 +366,21 @@ export default function AuditPage() {
     return items.sort((a, b) => b.gap - a.gap || (a.kind === 'rubric' ? -1 : 1))
   }, [summary, includeSkills, latestGap])
 
+  // Compare with the previous saved audit so score changes can be explained.
+  const previous = useMemo(() => {
+    if (!current?.created_at) return null
+    return pastAudits.find(a => a.id !== current.id && new Date(a.created_at) < new Date(current.created_at)) || null
+  }, [current, pastAudits])
+  const changes = useMemo(() => {
+    if (!previous || !scores) return []
+    const prevScores = withSelfScores(previous.scores || {}, selfScores)
+    return CRITERIA.map(c => {
+      const before = prevScores[c.id]?.excluded ? null : prevScores[c.id]?.score ?? null
+      const after = scores[c.id]?.excluded ? null : scores[c.id]?.score ?? null
+      const w = weights[c.id]?.weight ?? GRADE_WEIGHT[c.grade]
+      return { c, before, after, delta: (after ?? 0) * w - (before ?? 0) * w }
+    }).filter(x => x.before !== x.after)
+  }, [previous, scores, weights, selfScores])
   const protectedIds = scores ? CRITERIA.filter(c => scores[c.id]?.unscored_reason === 'protected').map(c => c.id) : []
   const unscoredSelf = criteriaFor('self').filter(c => selfScores[c.id]?.score === null || selfScores[c.id]?.score === undefined).length
   const scopeLabel = a => (a.scope === 'listing'
@@ -465,6 +520,8 @@ export default function AuditPage() {
               )}
             </div>
           </div>
+
+          {changes.length > 0 && <ChangesCard changes={changes} previous={previous} current={current} />}
 
           {/* Tabs */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
