@@ -16,6 +16,8 @@
 //
 // allowNA — case-study criteria that may not apply to every study (scorer returns null).
 // whenAllNA — what to do when no featured study applies: a score, or 'exclude' (drop from totals).
+// needsLiveSite — depends on loading the live portfolio. When the site is password-protected,
+//   these are left unscored (excluded from totals) rather than scored against the login page.
 // boost — C-grade items only: if listing text matches, the weight rises to x2 for that audit.
 
 export const RUBRIC_VERSION = '2026-10-22'
@@ -34,23 +36,23 @@ export const AREAS = [
 
 export const CRITERIA = [
   // ── 1. Positioning and homepage ────────────────────────────────────────────
-  { id: 'P1', area: 'positioning', grade: 'A', scorer: 'portfolio',
+  { id: 'P1', needsLiveSite: true, area: 'positioning', grade: 'A', scorer: 'portfolio',
     criterion: 'One-sentence positioning',
     bar: 'First screen states domain, problem type and level of ownership.' },
-  { id: 'P2', area: 'positioning', grade: 'B', scorer: 'portfolio',
+  { id: 'P2', needsLiveSite: true, area: 'positioning', grade: 'B', scorer: 'portfolio',
     criterion: 'Named specialty',
     bar: 'Positioning names a domain (e.g. clinical/enterprise software, design systems, AI), not just "product designer".' },
-  { id: 'P3', area: 'positioning', grade: 'B', scorer: 'portfolio',
+  { id: 'P3', needsLiveSite: true, area: 'positioning', grade: 'B', scorer: 'portfolio',
     criterion: 'Work is one click away',
     bar: 'Case studies are reachable from the homepage with no hunting; featured work is not behind a password.' },
-  { id: 'P4', area: 'positioning', grade: 'B', scorer: 'site',
+  { id: 'P4', needsLiveSite: true, area: 'positioning', grade: 'B', scorer: 'site',
     criterion: 'Phone-ready and fast',
     bar: 'Readable on a phone; loads quickly; no animation gating the content. Scored from the mobile PageSpeed performance score.' },
-  { id: 'P5', area: 'positioning', grade: 'C', scorer: 'portfolio',
+  { id: 'P5', needsLiveSite: true, area: 'positioning', grade: 'C', scorer: 'portfolio',
     criterion: 'Range is visible',
     bar: 'Below the specialty, side projects or earlier work show breadth.',
     boost: 'versatil|generalist|end-to-end|full[- ]stack|wear many hats|0 to 1|zero to one' },
-  { id: 'P6', area: 'positioning', grade: 'C', scorer: 'portfolio',
+  { id: 'P6', needsLiveSite: true, area: 'positioning', grade: 'C', scorer: 'portfolio',
     criterion: 'Common questions answered',
     bar: 'An About or writing section covers how you lead, handle conflict, and use AI.',
     boost: 'lead|leadership|mentor|influence|player[- ]coach|manage' },
@@ -130,7 +132,7 @@ export const CRITERIA = [
   { id: 'Q2', area: 'craft', grade: 'B', scorer: 'self',
     criterion: 'Realistic product screens',
     bar: 'Mockups look like real product surfaces with realistic content, ideally shown in context.' },
-  { id: 'Q3', area: 'craft', grade: 'B', scorer: 'site',
+  { id: 'Q3', needsLiveSite: true, area: 'craft', grade: 'B', scorer: 'site',
     criterion: 'Accessible and bug-free',
     bar: 'Contrast passes WCAG, keyboard navigation and semantic headings work, images have alt text. Scored from the PageSpeed accessibility score; check keyboard use and broken links by hand.' },
   { id: 'Q4', area: 'craft', grade: 'B', scorer: 'case_study',
@@ -165,7 +167,7 @@ export const CRITERIA = [
     bar: 'At least one bullet names an AI workflow and what it changed.' },
   { id: 'R8', area: 'resume', grade: 'B', scorer: 'resume',
     criterion: 'One story across channels',
-    bar: 'Resume, LinkedIn and portfolio use the same titles, dates and positioning. Scored on resume vs. portfolio homepage; check LinkedIn by hand.' },
+    bar: 'Resume, LinkedIn and portfolio use the same titles, dates, project names and positioning. Scored on the resume vs. your case studies (the Work section), plus the homepage when it is public; check LinkedIn by hand.' },
   { id: 'R9', area: 'resume', grade: 'C', scorer: 'code',
     criterion: 'Length and depth',
     bar: '1–2 pages; recent roles detailed, older ones condensed. Approximated from word count.' },
@@ -212,6 +214,14 @@ export const CRITERIA = [
 ]
 
 export const CRITERIA_BY_ID = Object.fromEntries(CRITERIA.map(c => [c.id, c]))
+
+// Notes shown on criteria left unscored because the portfolio is password-protected.
+export const PROTECTED_NOTE = 'Unscored: your portfolio is password-protected, so the audit can\'t see the live site. Check this one by hand.'
+export const PROTECTED_P3_NOTE = 'Unscored by choice: your portfolio is password-protected because of NDA work. Reviewers who have to hunt for a password may move on, so put the password right next to the portfolio link on your resume and in every application.'
+
+export function protectedScore(id) {
+  return { score: null, unscored_reason: 'protected', note: id === 'P3' ? PROTECTED_P3_NOTE : PROTECTED_NOTE }
+}
 
 export function criteriaFor(scorer) {
   return CRITERIA.filter(c => c.scorer === scorer)

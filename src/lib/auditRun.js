@@ -4,7 +4,7 @@
 
 import {
   CRITERIA, CRITERIA_BY_ID, criteriaFor, computeWeights,
-  aggregateCaseStudy, codeScores, siteScores,
+  aggregateCaseStudy, codeScores, siteScores, protectedScore,
 } from './rubric.js'
 
 // Listings that define "the job you want next" for this audit.
@@ -98,7 +98,13 @@ export async function runAudit({ scope, listings, pieces, resume, portfolioUrl, 
   }))
 
   const resumePromise = resume?.content
-    ? step('resume', 'Resume', () => post({ mode: 'resume', resume: resume.content, homepageUrl: portfolioUrl || null, target, keywords }))
+    ? step('resume', 'Resume', () => post({
+      mode: 'resume', resume: resume.content, homepageUrl: portfolioUrl || null, target, keywords,
+      // Featured studies (or every case study if none are featured) stand in for the Work section.
+      caseStudies: (featured.length ? featured : pieces.filter(p => p.type === 'Case Study'))
+        .filter(p => p.mdx_content || p.description)
+        .map(p => ({ title: p.title, mdx_content: p.mdx_content, description: p.description })),
+    }))
     : Promise.resolve(null)
 
   const studyPromises = featured.map(p =>
@@ -144,6 +150,8 @@ export async function runAudit({ scope, listings, pieces, resume, portfolioUrl, 
   mark(portfolio?.scores, 'claude')
   mark(resumeRes?.scores, 'claude')
   if (site?.psi) mark(siteScores(site.psi), 'pagespeed')
+  const siteProtected = !!(site?.protected || portfolio?.homepage?.protected)
+  if (siteProtected) criteriaFor('site').forEach(c => { scores[c.id] = { ...protectedScore(c.id), source: 'pagespeed' } })
   mark(codeScores({
     featured, studyAverages, resumeText: resume?.content || '', portfolioUrl, stories, listings,
   }), 'computed')
@@ -172,6 +180,7 @@ export async function runAudit({ scope, listings, pieces, resume, portfolioUrl, 
     psi: site?.psi || null,
     homepage: portfolio?.homepage || null,
     errors,
+    siteProtected,
     featuredIds: featured.map(p => p.id),
     inScopeCount: inScope.length,
   }
