@@ -307,22 +307,36 @@ export default async function handler(req, res) {
     }
 
     if (mode === 'resume') {
-      const { resume, homepageUrl, target, keywords = [] } = req.body
+      const { resume, homepageUrl, target, keywords = [], caseStudies = [] } = req.body
       if (!resume) return res.status(400).json({ error: 'Resume required' })
       const home = await fetchHomepage(homepageUrl)
       const isProtected = !!home?.protected
+      // R8 compares the resume with the portfolio. The case studies are the Work section's content,
+      // so they work even when the live site is password-protected.
+      const studyExcerpts = caseStudies.slice(0, 8).map(cs => {
+        const body = stripMdx(cs.mdx_content || cs.description || '').slice(0, 1500)
+        return `--- ${cs.title} ---\n${body}`
+      }).join('\n\n')
       const material = [
         `RESUME:\n${resume.slice(0, 12000)}`,
         `KEYWORDS FROM TARGET POSTINGS (for R5): ${keywords.slice(0, 40).join(', ') || '(none provided)'}`,
-        `PORTFOLIO HOMEPAGE, for comparing titles and positioning (R8):\n${home?.text ? home.text.slice(0, 3000) : '(not available)'}`,
+        `PORTFOLIO CASE STUDIES (the Work section; opening of each), for comparing titles, dates, project names and roles (R8):\n${studyExcerpts || '(none provided)'}`,
+        `PORTFOLIO HOMEPAGE, for comparing positioning (R8):\n${home?.text ? home.text.slice(0, 3000) : isProtected ? '(password-protected; compare against the case studies only)' : '(not available)'}`,
       ].join('\n\n')
       const scores = await scoreWithClaude({
-        criteria: criteriaFor('resume').filter(c => !(isProtected && c.needsLiveSite)),
+        criteria: criteriaFor('resume'),
         material,
         context: target,
         task: 'Score this resume. Quote evidence from the RESUME section unless the criterion is about the portfolio comparison.',
       })
-      if (isProtected) criteriaFor('resume').filter(c => c.needsLiveSite).forEach(c => { scores[c.id] = protectedScore(c.id) })
+      if (!studyExcerpts && !home?.text) {
+        scores.R8 = { score: null, evidence: '', fix: null, note: 'Unscored: no case study content or public homepage to compare the resume against.' }
+      } else if (!home?.text && scores.R8) {
+        const basis = isProtected
+          ? 'Scored against your case studies; homepage positioning wasn\'t checked because the site is password-protected.'
+          : 'Scored against your case studies; the homepage couldn\'t be loaded.'
+        scores.R8.note = scores.R8.note ? `${scores.R8.note} ${basis}` : basis
+      }
       return res.json({ scores })
     }
 
