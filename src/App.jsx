@@ -1,11 +1,12 @@
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { Layers, User, Zap, Layout, Briefcase, MessageSquare } from 'lucide-react'
+import { Layers, User, Zap, Layout, Briefcase, MessageSquare, ClipboardCheck } from 'lucide-react'
 import ListingsPage from './pages/ListingsPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import AnalysisPage from './pages/AnalysisPage.jsx'
 import PipelinePage from './pages/PipelinePage.jsx'
 import PortfolioPage from './pages/PortfolioPage.jsx'
 import InterviewPage from './pages/InterviewPage.jsx'
+import AuditPage from './pages/AuditPage.jsx'
 
 const nav = [
   { to: '/', label: 'Listings', icon: Layers },
@@ -14,6 +15,7 @@ const nav = [
   { to: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { to: '/profile', label: 'Profile', icon: User },
   { to: '/analysis', label: 'Gap Analysis', icon: Zap },
+  { to: '/audit', label: 'Audit', icon: ClipboardCheck },
 ]
 
 export default function App() {
@@ -78,6 +80,7 @@ export default function App() {
           <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/interview" element={<InterviewPage />} />
           <Route path="/analysis" element={<AnalysisPage />} />
+          <Route path="/audit" element={<AuditPage />} />
         </Routes>
       </main>
     </div>
