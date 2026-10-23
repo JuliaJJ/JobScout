@@ -203,5 +203,8 @@ alter table profile disable row level security;
 alter table interview_stories disable row level security;
 alter table interview_prep disable row level security;
 alter table offer_details disable row level security;
-alter table rubric_audits disable row level security;
-alter table rubric_self_scores disable row level security;
+-- Rubric tables keep RLS on with an open policy, since newer Supabase projects enable RLS on new tables.
+alter table rubric_audits enable row level security;
+alter table rubric_self_scores enable row level security;
+create policy "jobscout app access" on rubric_audits for all to anon, authenticated using (true) with check (true);
+create policy "jobscout app access" on rubric_self_scores for all to anon, authenticated using (true) with check (true);

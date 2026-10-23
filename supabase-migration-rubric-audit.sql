@@ -29,5 +29,17 @@ create table if not exists rubric_self_scores (
   notes text
 );
 
-alter table rubric_audits disable row level security;
-alter table rubric_self_scores disable row level security;
+-- Access: JobScout is a single-user app that talks to Supabase with the anon key.
+-- Newer Supabase projects switch row-level security on for new tables automatically,
+-- which blocks inserts. Instead of turning RLS off, keep it on and add a policy that
+-- gives the app the same open access the other JobScout tables have.
+alter table rubric_audits enable row level security;
+alter table rubric_self_scores enable row level security;
+
+drop policy if exists "jobscout app access" on rubric_audits;
+create policy "jobscout app access" on rubric_audits
+  for all to anon, authenticated using (true) with check (true);
+
+drop policy if exists "jobscout app access" on rubric_self_scores;
+create policy "jobscout app access" on rubric_self_scores
+  for all to anon, authenticated using (true) with check (true);
